@@ -13,7 +13,9 @@ import {
   parseSparqlResults,
 } from "./lib/sparql";
 
-app.get("/agenda-overview/:agenda_id", getAgendaOverview);
+app.get("/agenda/:agenda_id", getNamedPieces);
+
+app.post("/agenda", updatePieces);
 
 app.use(errorHandler);
 
@@ -116,11 +118,7 @@ async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
   return parseSparqlResults(results) as Piece[];
 }
 
-async function getAgendaOverview(
-  req: Request,
-  res: Response,
-  next: () => void
-) {
+async function getNamedPieces(req: Request, res: Response) {
   const agendaId = req.params["agenda_id"];
   if (!agendaId) {
     return res
@@ -134,4 +132,8 @@ async function getAgendaOverview(
     piece.newTitle = piece.title;
   });
   return res.send(pieces);
+}
+
+async function updatePieces(req: Request, res: Response) {
+  return res.end();
 }
