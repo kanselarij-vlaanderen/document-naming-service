@@ -1,23 +1,24 @@
 declare module "mu" {
   import { Application, Request, Response } from "express";
 
-  type SparqlClientResult<T extends string> = {
-    head: { link: unknown[]; vars: T[] };
+  type SparqlClientResponse = {
+    head: { link: unknown[]; vars: string[] };
     results: {
       distinct: boolean;
       ordered: boolean;
       bindings: Record<
-        T,
+        string,
         {
-          type: "literal";
+          type: "literal" | "typed-literal" | "uri";
           "xml:lang"?: string;
+          datatype?: "http://www.w3.org/2001/XMLSchema#dateTime";
           value: SparqlClientValue;
         }
       >[];
     };
   } | null;
 
-  type SparqlClientValue = string | number | Date | undefined;
+  type SparqlClientValue = string | number | Date | boolean | undefined;
 
   const app: Application;
   function sparqlEscapeString(s: string): string;
@@ -32,12 +33,37 @@ declare module "mu" {
     value: string | boolean | number | Date,
     type: string
   ): string;
-  function query<T extends string>(queryString: string): Promise<SparqlClientResult<T>>;
-  function update(queryString: string): Promise<null>;
+  function query(queryString: string): Promise<SparqlClientResponse>;
+  function update(queryString: string): Promise<void>;
   function errorHandler(
     err: Error,
     req: Request,
     res: Response,
     next: () => void
   ): void;
+}
+
+declare module "@lblod/mu-auth-sudo" {
+  import { Application, Request, Response } from "express";
+
+  type SparqlClientResponse = {
+    head: { link: unknown[]; vars: string[] };
+    results: {
+      distinct: boolean;
+      ordered: boolean;
+      bindings: Record<
+        string,
+        {
+          type: "literal";
+          "xml:lang"?: string;
+          value: SparqlClientValue;
+        }
+      >[];
+    };
+  } | null;
+
+  type SparqlClientValue = string | number | Date | undefined;
+
+  function querySudo(queryString: string): Promise<SparqlClientResponse>;
+  function updateSudo(queryString: string): Promise<void>;
 }

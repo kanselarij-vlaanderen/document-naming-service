@@ -1,32 +1,54 @@
-import { sparqlEscapeUri } from "mu";
-
-const prefixes = {
-  adms: "http://www.w3.org/ns/adms#",
-  besluit: "http://data.vlaanderen.be/ns/besluit#",
-  besluitvorming: "https://data.vlaanderen.be/ns/besluitvorming#",
-  dbpedia: "http://dbpedia.org/ontology/",
-  dct: "http://purl.org/dc/terms/",
-  dossier: "https://data.vlaanderen.be/ns/dossier#",
-  ext: "http://mu.semte.ch/vocabularies/ext/",
-  mu: "http://mu.semte.ch/vocabularies/core/",
-  nfo: "http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#",
-  nie: "http://www.semanticdesktop.org/ontologies/2007/01/19/nie#",
-  nmo: "http://www.semanticdesktop.org/ontologies/2007/03/22/nmo#",
-  parl: "http://mu.semte.ch/vocabularies/ext/parlement/",
-  pav: "http://purl.org/pav/",
-  prov: "http://www.w3.org/ns/prov#",
-  schema: "http://schema.org/",
-  sign: "http://mu.semte.ch/vocabularies/ext/handtekenen/",
-  skos: "http://www.w3.org/2004/02/skos/core#",
-};
-
-const prefixHeaderLines = Object.fromEntries(
-  Object.entries(prefixes).map(([key, value]) => [
-    key,
-    `PREFIX ${key}: ${sparqlEscapeUri(value)}`,
-  ])
-) as typeof prefixes;
-
-export { 
-  prefixHeaderLines,
+export default {
+  GRAPHS: {
+    KANSELARIJ: "http://mu.semte.ch/graphs/organizations/kanselarij",
+    PUBLIC: "http://mu.semte.ch/graphs/public",
+  },
+  AGENDA_ITEM_TYPES: {
+    NOTA: "http://themis.vlaanderen.be/id/concept/agendapunt-type/dd47a8f8-3ad2-4d5a-8318-66fc02fe80fd",
+    MEDEDELING:
+      "http://themis.vlaanderen.be/id/concept/agendapunt-type/8f8adcf0-58ef-4edc-9e36-0c9095fd76b0",
+  },
+  SUBCASE_TYPES: {
+    BEKRACHTIGING:
+      "http://themis.vlaanderen.be/id/concept/procedurestap-type/bdba2bbc-7af6-490b-98a8-433955cfe869",
+  },
+  MEETING_TYPES: {
+    PVV: "http://themis.vlaanderen.be/id/concept/vergaderactiviteit-type/9b4701f8-a136-4009-94c6-d64fdc96b9a2",
+  },
+  PIECE_TYPES: {
+    DECREET: "https://data.vlaanderen.be/id/concept/AardWetgeving/Decreet",
+  },
+  DECISION_RESULT_CODES: {
+    GOEDGEKEURD:
+      "http://themis.vlaanderen.be/id/concept/beslissing-resultaatcodes/56312c4b-9d2a-4735-b0b1-2ff14bb524fd",
+    UITGESTELD:
+      "http://themis.vlaanderen.be/id/concept/beslissing-resultaatcodes/a29b3ffd-0839-45cb-b8f4-e1760f7aacaa",
+    KENNISNAME:
+      "http://themis.vlaanderen.be/id/concept/beslissing-resultaatcodes/9f342a88-9485-4a83-87d9-245ed4b504bf",
+    INGETROKKEN:
+      "http://themis.vlaanderen.be/id/concept/beslissing-resultaatcodes/453a36e8-6fbd-45d3-b800-ec96e59f273b",
+  },
+  AGENDA_STATUSSES: {
+    APPROVED:
+      "http://themis.vlaanderen.be/id/concept/agenda-status/fff6627e-4c96-4be1-b483-8fefcc6523ca",
+    DESIGN:
+      "http://themis.vlaanderen.be/id/concept/agenda-status/b3d8a99b-0a7e-419e-8474-4b508fa7ab91",
+  },
+  LATIN_ADVERBIAL_NUMERALS: [
+    "",
+    "bis",
+    "ter",
+    "quater",
+    "quinquies",
+    "sexies",
+    "septies",
+    "octies",
+    "novies",
+    "decies",
+    "undecies",
+    "duodecies",
+    "ter decies",
+    "quater decies",
+    "qiundecies",
+  ],
 };
