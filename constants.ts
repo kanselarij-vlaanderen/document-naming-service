@@ -51,4 +51,14 @@ export default {
     "quater decies",
     "qiundecies",
   ],
-};
+  JOB: {
+    STATUS: {
+      RUNNING: "http://vocab.deri.ie/cogs#Running",
+      SUCCESS: "http://vocab.deri.ie/cogs#Success",
+      FAIL: "http://vocab.deri.ie/cogs#Fail",
+    },
+    RDF_TYPE: "http://mu.semte.ch/vocabularies/ext/DocumentNamingJob",
+    RDF_RESOURCE_BASE: "http://mu.semte.ch/services/document-naming",
+    JSONAPI_JOB_TYPE: "document-naming-jobs"
+  },
+} as const;
