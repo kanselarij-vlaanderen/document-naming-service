@@ -22,6 +22,7 @@ const prefixes = {
   adms: "http://www.w3.org/ns/adms#",
   besluit: "http://data.vlaanderen.be/ns/besluit#",
   besluitvorming: "https://data.vlaanderen.be/ns/besluitvorming#",
+  cogs: "http://vocab.deri.ie/cogs#",
   dbpedia: "http://dbpedia.org/ontology/",
   dct: "http://purl.org/dc/terms/",
   dossier: "https://data.vlaanderen.be/ns/dossier#",
@@ -122,8 +123,13 @@ function parseSparqlResponse(
   }
   const vars = data.head.vars;
 
+  if (!data.results) {
+    throw new Error("SparqlClientResponse needs to be from a SELECT query");
+  }
+
   return data.results.bindings.map((binding) => {
     const obj: Record<string, SparqlClientValue> = {};
+    if (vars === undefined) return obj;
     vars.forEach((varKey) => {
       const bindingVar = binding[varKey];
       if (bindingVar === undefined) {
@@ -189,7 +195,7 @@ function reshapeParsedResults(
 }
 
 function booleanize(response: SparqlClientResponse, variableNames: string[]) {
-  if (!response) return;
+  if (!response?.results) return;
   response.results.bindings.forEach((binding) => {
     for (const varName of variableNames) {
       const sparqlValue = binding[varName];
