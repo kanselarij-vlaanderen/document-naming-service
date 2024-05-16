@@ -14,6 +14,7 @@ type Agendaitem = {
   uri: string;
   subcaseType: string;
   type: string;
+  agendaActivityNumber?: number;
   isPostponed: boolean;
 };
 
