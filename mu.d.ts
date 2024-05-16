@@ -2,8 +2,9 @@ declare module "mu" {
   import { Application, Request, Response } from "express";
 
   type SparqlClientResponse = {
-    head: { link: unknown[]; vars: string[] };
-    results: {
+    head: { link: unknown[]; vars?: string[] };
+    boolean?: boolean;
+    results?: {
       distinct: boolean;
       ordered: boolean;
       bindings: Record<
@@ -35,6 +36,7 @@ declare module "mu" {
   ): string;
   function query(queryString: string): Promise<SparqlClientResponse>;
   function update(queryString: string): Promise<void>;
+  function uuid(): string;
   function errorHandler(
     err: Error,
     req: Request,
