@@ -10,9 +10,9 @@ import {
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
 import { getAgendaitemPieces } from "./lib/get-agendaitem-pieces";
-import { createNamingJob, jobExists, updateJobStatus } from "./lib/jobs";
+import { createNamingJob, jobExists, latestJobFinishedAt, updateJobStatus } from "./lib/jobs";
 import { dasherize, getErrorMessage } from "./lib/utils";
-import bodyParser from 'body-parser';
+import bodyParser from "body-parser";
 
 type FileMapping = {
   uri: string;
@@ -29,6 +29,16 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
     return res.status(404).send(`No agenda id supplied`);
   }
 
+  const lastClientUpdateTimestamp = req.body.clientUpdateTimestamp as Date | undefined;
+  if (!lastClientUpdateTimestamp) {
+    return res.status(400).send(`No clientUpdateTimestamp supplied.`)
+  }
+  const latestJobTimestamp = await latestJobFinishedAt();
+
+  if (latestJobTimestamp && latestJobTimestamp > lastClientUpdateTimestamp) {
+    return res.status(409).send("This agenda is approved already, please reload the page.")
+  }
+
   const mappings = req.body.data as FileMapping[];
   if (!mappings) {
     return res.status(400).send(`No piece name mappings supplied`);
@@ -41,7 +51,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 
   const authorized = await jobExists(job.uri);
   if (!authorized) {
-    res.status(403).send({
+    return res.status(403).send({
       errors: [
         {
           detail:
@@ -49,7 +59,6 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
         },
       ],
     });
-    return;
   }
 
   const payload = {
@@ -218,7 +227,7 @@ function increaseCounters(
 function generateName(
   agenda: Agenda,
   agendaitem: Agendaitem,
-  piece: Piece,
+  piece: Piece
 ): string {
   const { meeting } = agenda;
   const { plannedStart } = meeting;

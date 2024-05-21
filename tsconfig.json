@@ -28,7 +28,9 @@
     "noFallthroughCasesInSwitch": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
-    "target": "es2022"
+    "target": "es2022",
+
+    "allowSyntheticDefaultImports": true
 
   }
 }

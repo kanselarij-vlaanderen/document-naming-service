@@ -8,7 +8,7 @@ import {
 } from "mu";
 import CONSTANTS from "../constants";
 import { Piece } from "../types/types";
-import { prefixHeaderLines } from "./sparql-utils";
+import { parseSparqlResponse, prefixHeaderLines } from "./sparql-utils";
 
 type DocumentNamingJob = {
   uri: string;
@@ -63,7 +63,11 @@ async function createNamingJob(pieces: string[]): Promise<DocumentNamingJob> {
   return job;
 }
 
-async function updateJobStatus(uri: string, status: JobStatus, errorMessage?: string): Promise<void> {
+async function updateJobStatus(
+  uri: string,
+  status: JobStatus,
+  errorMessage?: string
+): Promise<void> {
   const { SUCCESS, FAIL } = CONSTANTS.JOB.STATUS;
   const time = new Date();
   let timePred;
@@ -84,7 +88,11 @@ async function updateJobStatus(uri: string, status: JobStatus, errorMessage?: st
   }
   INSERT {
       ${escapedUri} ext:status ${sparqlEscapeUri(status)} ;
-          ${errorMessage ? `schema:error ${sparqlEscapeString(errorMessage)} ;` : ""}
+          ${
+            errorMessage
+              ? `schema:error ${sparqlEscapeString(errorMessage)} ;`
+              : ""
+          }
           ${sparqlEscapeUri(timePred)} ${sparqlEscapeDateTime(time)} .
   }
   WHERE {
@@ -95,4 +103,35 @@ async function updateJobStatus(uri: string, status: JobStatus, errorMessage?: st
   await update(queryString);
 }
 
-export { DocumentNamingJob, jobExists, createNamingJob, updateJobStatus };
+async function latestJobFinishedAt(): Promise<Date | null> {
+  const { KANSELARIJ } = CONSTANTS.GRAPHS;
+  const { SUCCESS } = CONSTANTS.JOB.STATUS;
+  const queryString = `
+    ${prefixHeaderLines.ext}
+    ${prefixHeaderLines.prov}
+    SELECT ?job
+    WHERE {
+      GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
+        ?job 
+          ext:status ${sparqlEscapeUri(SUCCESS)} ;
+          prov:endedAtTime ?time .
+      }
+    } ORDER BY ?time LIMIT 1
+  `;
+  const response = await query(queryString);
+  const parsed = parseSparqlResponse(response);
+  const time = parsed[0]?.["time"];
+  if (!time) {
+    return null;
+  }
+
+  return time as Date;
+}
+
+export {
+  DocumentNamingJob,
+  jobExists,
+  createNamingJob,
+  updateJobStatus,
+  latestJobFinishedAt,
+};
