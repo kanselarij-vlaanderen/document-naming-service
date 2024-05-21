@@ -1,4 +1,5 @@
 import { sparqlEscapeUri, SparqlClientResponse, SparqlClientValue } from "mu";
+import "core-js/stable";
 
 /**
  * Configuration for reshaping sparql result data.
