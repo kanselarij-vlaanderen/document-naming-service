@@ -33,7 +33,10 @@ async function jobExists(uri: string): Promise<boolean> {
   return !!results?.boolean;
 }
 
-async function createNamingJob(agendaUri: string, pieces: string[]): Promise<DocumentNamingJob> {
+async function createNamingJob(
+  agendaUri: string,
+  pieces: string[]
+): Promise<DocumentNamingJob> {
   const RESOURCE_BASE = CONSTANTS.JOB.RDF_RESOURCE_BASE;
   const JSONAPI_JOB_TYPE = CONSTANTS.JOB.JSONAPI_JOB_TYPE;
   const { RUNNING } = CONSTANTS.JOB.STATUS;
@@ -49,6 +52,7 @@ async function createNamingJob(agendaUri: string, pieces: string[]): Promise<Doc
   ${prefixHeaderLines.dct}
   ${prefixHeaderLines.ext}
   ${prefixHeaderLines.mu}
+  ${prefixHeaderLines.prov}
 
   INSERT DATA {
       ${sparqlEscapeUri(job.uri)} a cogs:Job , ${sparqlEscapeUri(
@@ -57,7 +61,7 @@ async function createNamingJob(agendaUri: string, pieces: string[]): Promise<Doc
           mu:uuid ${sparqlEscapeString(job.id)} ;
           ext:status ${sparqlEscapeString(job.status)} ;
           prov:used ${sparqlEscapeUri(agendaUri)} ;
-          ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`)}
+          ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`).join('        \n')}
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
   await update(queryString);
@@ -104,7 +108,7 @@ async function updateJobStatus(
   await update(queryString);
 }
 
-async function latestJobFinishedAt(agendaUri: string): Promise<Date | null> {
+async function latestJobFinishedAt(agendaId: string): Promise<Date | null> {
   const { KANSELARIJ } = CONSTANTS.GRAPHS;
   const { SUCCESS } = CONSTANTS.JOB.STATUS;
   const queryString = `
@@ -114,7 +118,7 @@ async function latestJobFinishedAt(agendaUri: string): Promise<Date | null> {
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
         ?job 
-          prov:used ${sparqlEscapeString(agendaUri)} ;
+          prov:used ${sparqlEscapeString(agendaId)} ;
           ext:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }

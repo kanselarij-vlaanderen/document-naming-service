@@ -10,7 +10,12 @@ import {
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
 import { getAgendaitemPieces } from "./lib/get-agendaitem-pieces";
-import { createNamingJob, jobExists, latestJobFinishedAt, updateJobStatus } from "./lib/jobs";
+import {
+  createNamingJob,
+  jobExists,
+  latestJobFinishedAt,
+  updateJobStatus,
+} from "./lib/jobs";
 import { dasherize, getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
 
@@ -29,14 +34,23 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
     return res.status(404).send(`No agenda id supplied`);
   }
 
-  const lastClientUpdateTimestamp = req.body.clientUpdateTimestamp as Date | undefined;
-  if (!lastClientUpdateTimestamp) {
-    return res.status(400).send(`No clientUpdateTimestamp supplied.`)
+  const agenda = await getAgenda(agendaId);
+  if (!agenda) {
+    return res
+      .status(404)
+      .send(`Agenda with id ${agendaId} could not be found.`);
   }
-  const latestJobTimestamp = await latestJobFinishedAt();
+
+  if (!req.body.clientUpdateTimestamp) {
+    return res.status(400).send(`No clientUpdateTimestamp supplied.`);
+  }
+  const lastClientUpdateTimestamp = new Date(req.body.clientUpdateTimestamp);
+  const latestJobTimestamp = await latestJobFinishedAt(agenda.uri);
 
   if (latestJobTimestamp && latestJobTimestamp > lastClientUpdateTimestamp) {
-    return res.status(409).send("This agenda is approved already, please reload the page.")
+    return res
+      .status(409)
+      .send("This agenda is approved already, please reload the page.");
   }
 
   const mappings = req.body.data as FileMapping[];
@@ -47,7 +61,10 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
     mappings.map(({ uri, generatedName }) => [uri, generatedName])
   );
 
-  const job = await createNamingJob(mappings.map((doc) => doc.uri));
+  const job = await createNamingJob(
+    agenda.uri,
+    mappings.map((doc) => doc.uri)
+  );
 
   const authorized = await jobExists(job.uri);
   if (!authorized) {
@@ -75,12 +92,8 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 
   res.send(payload);
 
-  try {
-    const agenda = await getAgenda(agendaId);
-    if (!agenda) {
-      throw new Error(`Agenda with id ${agendaId} could not be found.`);
-    }
 
+  try {
     const agendaitems = await getSortedAgendaitems(agendaId);
     const counters = await initCounters(agenda);
 

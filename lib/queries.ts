@@ -260,6 +260,10 @@ async function updateAgendaActivityNumber(
   agendaActivityNumber: number
 ): Promise<void> {
   const queryString = `
+    ${prefixHeaderLines.adms}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.ext}
+    ${prefixHeaderLines.prov}
     INSERT {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
         ?subcase adms:identifier ${sparqlEscapeInt(agendaActivityNumber)}
