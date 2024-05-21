@@ -33,7 +33,7 @@ async function jobExists(uri: string): Promise<boolean> {
   return !!results?.boolean;
 }
 
-async function createNamingJob(pieces: string[]): Promise<DocumentNamingJob> {
+async function createNamingJob(agendaUri: string, pieces: string[]): Promise<DocumentNamingJob> {
   const RESOURCE_BASE = CONSTANTS.JOB.RDF_RESOURCE_BASE;
   const JSONAPI_JOB_TYPE = CONSTANTS.JOB.JSONAPI_JOB_TYPE;
   const { RUNNING } = CONSTANTS.JOB.STATUS;
@@ -56,6 +56,7 @@ async function createNamingJob(pieces: string[]): Promise<DocumentNamingJob> {
   )} ;
           mu:uuid ${sparqlEscapeString(job.id)} ;
           ext:status ${sparqlEscapeString(job.status)} ;
+          prov:used ${sparqlEscapeUri(agendaUri)} ;
           ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`)}
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
@@ -103,7 +104,7 @@ async function updateJobStatus(
   await update(queryString);
 }
 
-async function latestJobFinishedAt(): Promise<Date | null> {
+async function latestJobFinishedAt(agendaUri: string): Promise<Date | null> {
   const { KANSELARIJ } = CONSTANTS.GRAPHS;
   const { SUCCESS } = CONSTANTS.JOB.STATUS;
   const queryString = `
@@ -113,6 +114,7 @@ async function latestJobFinishedAt(): Promise<Date | null> {
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
         ?job 
+          prov:used ${sparqlEscapeString(agendaUri)} ;
           ext:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }
