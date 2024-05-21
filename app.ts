@@ -4,14 +4,110 @@ import {
   getLastAgendaActivityNumber,
   getSortedAgendaitems,
   getAgenda,
+  updatePieceName,
+  updateAgendaActivityNumber,
 } from "./lib/queries";
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
 import { getAgendaitemPieces } from "./lib/get-agendaitem-pieces";
+import { createNamingJob, jobExists, updateJobStatus } from "./lib/jobs";
+import { dasherize, getErrorMessage } from "./lib/utils";
+import bodyParser from 'body-parser';
+
+type FileMapping = {
+  uri: string;
+  generatedName: string;
+};
+
+app.use(bodyParser.json());
 
 app.get("/agenda/:agenda_id", getNamedPieces);
 
-app.post("/agenda", updatePieces);
+app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
+  const agendaId = req.params["agenda_id"];
+  if (!agendaId) {
+    return res.status(404).send(`No agenda id supplied`);
+  }
+
+  const mappings = req.body.data as FileMapping[];
+  if (!mappings) {
+    return res.status(400).send(`No piece name mappings supplied`);
+  }
+  const mappingMap = new Map(
+    mappings.map(({ uri, generatedName }) => [uri, generatedName])
+  );
+
+  const job = await createNamingJob(mappings.map((doc) => doc.uri));
+
+  const authorized = await jobExists(job.uri);
+  if (!authorized) {
+    res.status(403).send({
+      errors: [
+        {
+          detail:
+            "You don't have the required access rights to change change document names",
+        },
+      ],
+    });
+    return;
+  }
+
+  const payload = {
+    data: {
+      type: CONSTANTS.JOB.JSONAPI_JOB_TYPE,
+      id: job.id,
+      attributes: {
+        uri: job.uri,
+        status: job.status,
+        created: job.created,
+      },
+    },
+  };
+
+  res.send(payload);
+
+  try {
+    const agenda = await getAgenda(agendaId);
+    if (!agenda) {
+      throw new Error(`Agenda with id ${agendaId} could not be found.`);
+    }
+
+    const agendaitems = await getSortedAgendaitems(agendaId);
+    const counters = await initCounters(agenda);
+
+    for (const agendaitem of agendaitems) {
+      const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+      ensureAgendaActivityNumber(agendaitem, agenda, counters);
+      if (agendaitem.agendaActivityNumber === undefined)
+        throw new Error("No agendaActivityNumber (should never happen)");
+      for (const piece of piecesResults) {
+        const newName = mappingMap.get(piece.uri) ?? piece.title;
+        await updatePieceName(piece.uri, newName);
+      }
+      await updateAgendaActivityNumber(
+        agendaitem.uri,
+        agendaitem.agendaActivityNumber
+      );
+    }
+    const { SUCCESS } = CONSTANTS.JOB.STATUS;
+    await updateJobStatus(job.uri, SUCCESS);
+  } catch (e) {
+    const { FAIL } = CONSTANTS.JOB.STATUS;
+    await updateJobStatus(job.uri, FAIL, getErrorMessage(e));
+  }
+  return;
+});
+
+function ensureAgendaActivityNumber(
+  agendaitem: Agendaitem,
+  agenda: Agenda,
+  counters: AgendaActivityCounterDict
+): void {
+  if (agendaitem.agendaActivityNumber === undefined) {
+    agendaitem.agendaActivityNumber = readCounter(agenda, agendaitem, counters);
+    increaseCounters(agenda, agendaitem, counters);
+  }
+}
 
 app.use(errorHandler);
 
@@ -62,29 +158,34 @@ async function getNamedPieces(req: Request, res: Response) {
       .send(`Agenda with id ${agendaId} could not be found.`);
   }
 
-  console.log(agenda);
-
   const agendaitems = await getSortedAgendaitems(agendaId);
   const counters = await initCounters(agenda);
 
-  const mappings = [];
+  const mappings: FileMapping[] = [];
 
   for (const agendaitem of agendaitems) {
     const piecesResults = await getAgendaitemPieces(agendaitem.uri);
-    for (const [index, piece] of piecesResults.entries()) {
-      const generatedName = generateName(
-        agenda,
-        agendaitem,
-        piece,
-        index,
-        counters
-      );
-      increaseCounters(agenda, agendaitem, counters);
+    ensureAgendaActivityNumber(agendaitem, agenda, counters);
+
+    for (const piece of piecesResults) {
+      const generatedName = generateName(agenda, agendaitem, piece);
       mappings.push({ uri: piece.uri, generatedName });
     }
   }
 
   return res.send(mappings);
+}
+
+function readCounter(
+  agenda: Agenda,
+  agendaitem: Agendaitem,
+  counters: AgendaActivityCounterDict
+): number {
+  const { type: agendaitemType, subcaseType } = agendaitem;
+  const agendaitemPurpose = getAgendaitemPurpose(agendaitemType, subcaseType);
+  const isPvv = agenda.meeting.type === CONSTANTS.MEETING_TYPES.PVV;
+
+  return counters[isPvv ? "pvv" : "regular"][agendaitemPurpose];
 }
 
 function getAgendaitemPurpose(
@@ -118,8 +219,6 @@ function generateName(
   agenda: Agenda,
   agendaitem: Agendaitem,
   piece: Piece,
-  pieceIndex: number,
-  counters: AgendaActivityCounterDict
 ): string {
   const { meeting } = agenda;
   const { plannedStart } = meeting;
@@ -135,12 +234,10 @@ function generateName(
   const padZeros = (x: unknown, n: number) => String(x).padStart(n, "0");
   const monthPart = padZeros(plannedStart.getMonth() + 1, 2);
   const dayPart = padZeros(plannedStart.getDate(), 2);
-  const agendaActivityNumberPart = padZeros(
-    counters[isPvv ? "pvv" : "regular"][agendaitemPurpose],
-    4
-  );
+  const agendaActivityNumber = agendaitem.agendaActivityNumber;
+  const agendaActivityNumberPart = padZeros(agendaActivityNumber, 4);
   const vvPart = isPvv ? "VV " : "";
-  const subcaseTypePart =
+  const agendaitemPurposePart =
     agendaitemPurpose === "doc"
       ? "DOC"
       : agendaitemPurpose === "med"
@@ -157,10 +254,10 @@ function generateName(
       : "";
 
   const fileTypePart = piece.fileExtension;
-  const subjectPart = extractSubject(piece.title);
+  const subjectPart = dasherize(extractSubject(piece.title));
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
-    `${subcaseTypePart}.${agendaActivityNumberPart}-${pieceIndex + 1} ` +
+    `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
     `${documentVersionPart}${subjectPart}${documentTypePart}.${fileTypePart}`
   );
 }
@@ -171,12 +268,8 @@ function capitalizeString(str: string): string {
 
 function extractSubject(pieceTitle: string): string {
   // Might need to edit this regex
-  const regex = new RegExp("^(?<subject>.+)-Nota.*$");
+  const regex = new RegExp("^(?<subject>.+)-.*$");
   const match = regex.exec(pieceTitle);
   if (!match?.groups?.["subject"]) return "";
   else return match.groups["subject"];
-}
-
-async function updatePieces(req: Request, res: Response) {
-  return res.end();
 }

@@ -4,20 +4,28 @@ import {
   parseSparqlResponse,
   prefixHeaderLines,
 } from "./sparql-utils";
-import { sparqlEscapeString, sparqlEscapeUri, query } from "mu";
+import {
+  sparqlEscapeString,
+  sparqlEscapeUri,
+  query,
+  update,
+  sparqlEscapeInt,
+} from "mu";
 import CONSTANTS from "../constants";
 import { Agenda, Agendaitem, Piece } from "../types/types";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
   const queryString = `
+    ${prefixHeaderLines.adms}
     ${prefixHeaderLines.besluitvorming}
     ${prefixHeaderLines.dct}
     ${prefixHeaderLines.ext}
     ${prefixHeaderLines.mu}
+    ${prefixHeaderLines.schema}
     ${prefixHeaderLines.prov}
 
     SELECT DISTINCT ?agendaitem ?subcaseType 
-      ?agendaitemType ?isPostponed WHERE {
+      ?agendaitemType ?isPostponed ?agendaActivityNumber ?position WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
           VALUES ?agendaId { ${sparqlEscapeString(agendaId)} }
           ?agenda 
@@ -26,8 +34,10 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
           ?agendaitem 
             ^besluitvorming:genereertAgendapunt 
             / prov:wasInformedBy 
-            / ext:indieningVindtPlaatsTijdens ?subcase .
+            / ext:indieningVindtPlaatsTijdens ?subcase ;
+            schema:position ?position .
           OPTIONAL { ?subcase dct:type ?subcaseType }
+          OPTIONAL { ?subcase adms:identifier ?agendaActivityNumber }
           ?subcase ext:agendapuntType ?agendaitemType .
           OPTIONAL {
             ?postponedAgendaitem 
@@ -43,7 +53,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
           }
           BIND(IF(bound(?postponedAgendaitem), "true"^^xsd:boolean, "false"^^xsd:boolean) AS ?isPostponed)
       }
-    }
+    } ORDER BY ?position
   `;
 
   const response = await query(queryString);
@@ -59,6 +69,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
       subcaseType: { kind: "literal" },
       type: { kind: "literal", sourceProp: "agendaitemType" },
       isPostponed: { kind: "literal" },
+      agendaActivityNumber: { kind: "literal" },
     },
   }) as Agendaitem[];
 }
@@ -89,12 +100,12 @@ async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
 }
 
 async function getSubcasePieces(subcase: string) {
-  const queryString = `PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
-PREFIX pav: <http://purl.org/pav/>
-PREFIX dct: <http://purl.org/dc/terms/>
-PREFIX besluitvor: <https://data.vlaanderen.be/ns/besluitvorming#>
-PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
+  const queryString = `
+${prefixHeaderLines.prov}
+${prefixHeaderLines.ext}
+${prefixHeaderLines.pav}
+${prefixHeaderLines.dct}
+${prefixHeaderLines.dossier}
 
 SELECT DISTINCT ?piece ?pieceName ?pieceType
 FROM ${sparqlEscapeUri(CONSTANTS.GRAPHS.PUBLIC)}
@@ -216,8 +227,57 @@ async function getAgenda(agendaId: string): Promise<Agenda | null> {
       uri: head["meeting"],
       type: head["meetingType"],
       plannedStart: head["plannedStart"],
-    }
+    },
   } as Agenda;
+}
+
+async function updatePieceName(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const queryString = `
+    ${prefixHeaderLines.dct}
+
+    DELETE WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ${sparqlEscapeUri(pieceUri)} dct:title ?title .
+      }
+    }
+    ;
+    INSERT DATA {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ${sparqlEscapeUri(pieceUri)} dct:title ${sparqlEscapeString(newName)} .
+      }
+    }
+  `;
+
+  await update(queryString);
+}
+
+// TODO which graphs are needed here?
+async function updateAgendaActivityNumber(
+  agendaitemUri: string,
+  agendaActivityNumber: number
+): Promise<void> {
+  const queryString = `
+    INSERT {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ?subcase adms:identifier ${sparqlEscapeInt(agendaActivityNumber)}
+      }
+    }
+    WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ${sparqlEscapeUri(agendaitemUri)} 
+          ^besluitvorming:genereertAgendapunt 
+          / prov:wasInformedBy 
+          / ext:indieningVindtPlaatsTijdens ?subcase .
+        
+        FILTER(NOT EXISTS { ?subcase adms:identifier [] } ) .
+      }
+    }
+  `;
+
+  await update(queryString);
 }
 
 export {
@@ -225,4 +285,6 @@ export {
   getPiecesForAgenda,
   getLastAgendaActivityNumber,
   getAgenda,
+  updatePieceName,
+  updateAgendaActivityNumber,
 };

@@ -1,8 +1,5 @@
 import { query, sparqlEscapeUri } from "mu";
-import {
-  parseAndReshape,
-  prefixHeaderLines,
-} from "./sparql-utils";
+import { parseAndReshape, prefixHeaderLines } from "./sparql-utils";
 import CONSTANTS from "../constants";
 import { Piece } from "../types/types";
 
@@ -31,21 +28,17 @@ async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
           ${sparqlEscapeUri(agendaitem)} 
             besluitvorming:geagendeerdStuk ?piece .
           FILTER NOT EXISTS { [] pav:previousVersion ?piece }
-          ?piece dct:title ?pieceName ;
-            prov:value ?file .
-          ?file dbpedia:fileExtension ?fileExtension .
-          OPTIONAL { 
-            ?documentContainer 
-              dossier:Collectie.bestaatUit ?piece ; 
-              dct:type/skos:prefLabel ?pieceType . 
-              OPTIONAL {
-                ?documentContainer schema:position ?piecePosition .
-              }
-          }
+          ?piece 
+            dct:title ?pieceName ;
+            prov:value / dbpedia:fileExtension ?fileExtension .
+          ?documentContainer 
+            dossier:Collectie.bestaatUit ?piece ; 
+            schema:position ?piecePosition .
+          OPTIONAL { ?documentContainer dct:type/skos:prefLabel ?pieceType . }
         }
       }
     }
-    ORDER BY ?pieceName
+    ORDER BY ?piecePosition
   `;
 
   const response = await query(queryString);
