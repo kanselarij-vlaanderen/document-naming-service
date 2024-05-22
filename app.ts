@@ -266,7 +266,7 @@ function generateName(
       ? "MED"
       : "DEC";
 
-  const documentTypePart = piece.type ? `-${capitalizeString(piece.type)}` : "";
+  const documentTypePart = piece.type ? `-${piece.type}` : "";
 
   const documentVersionPart =
     piece.revision > 1
@@ -282,8 +282,4 @@ function generateName(
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
     `${documentVersionPart}${subjectPart}${documentTypePart}.${fileTypePart}`
   );
-}
-
-function capitalizeString(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
