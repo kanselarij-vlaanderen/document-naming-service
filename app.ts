@@ -276,7 +276,7 @@ function generateName(
       : "";
 
   const fileTypePart = piece.fileExtension;
-  const subjectPart = dasherize(extractSubject(piece.title));
+  const subjectPart = dasherize(piece.title);
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
@@ -286,12 +286,4 @@ function generateName(
 
 function capitalizeString(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-}
-
-function extractSubject(pieceTitle: string): string {
-  // Might need to edit this regex
-  const regex = new RegExp("^(?<subject>.+)-.*$");
-  const match = regex.exec(pieceTitle);
-  if (!match?.groups?.["subject"]) return "";
-  else return match.groups["subject"];
 }
