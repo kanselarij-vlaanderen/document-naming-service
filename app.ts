@@ -277,11 +277,10 @@ function generateName(
         } `.toUpperCase()
       : "";
 
-  const fileTypePart = piece.fileExtension;
   const subjectPart = dasherize(piece.title);
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
-    `${documentVersionPart}${subjectPart}${documentTypePart}.${fileTypePart}`
+    `${documentVersionPart}${subjectPart}${documentTypePart}`
   );
 }
