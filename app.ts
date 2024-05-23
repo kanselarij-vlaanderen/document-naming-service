@@ -268,7 +268,7 @@ function generateName(
       ? "MED"
       : "DEC";
 
-  const documentTypePart = piece.type ? `-${piece.type}` : "";
+  const documentTypePart = piece.type ? ` - ${piece.type}` : "";
 
   const documentVersionPart =
     piece.revision > 1
