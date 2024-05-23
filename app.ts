@@ -128,8 +128,8 @@ function ensureAgendaActivityNumber(
   counters: AgendaActivityCounterDict
 ): void {
   if (agendaitem.agendaActivityNumber === undefined) {
-    agendaitem.agendaActivityNumber = readCounter(agenda, agendaitem, counters);
     increaseCounters(agenda, agendaitem, counters);
+    agendaitem.agendaActivityNumber = readCounter(agenda, agendaitem, counters);
   }
 }
 
@@ -277,7 +277,7 @@ function generateName(
         } `.toUpperCase()
       : "";
 
-  const subjectPart = dasherize(piece.title);
+  const subjectPart = piece.title.trim();
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +

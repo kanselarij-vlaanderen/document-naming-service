@@ -24,16 +24,16 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     ${prefixHeaderLines.schema}
     ${prefixHeaderLines.prov}
 
-    SELECT DISTINCT ?agendaitem ?subcaseType 
+    SELECT DISTINCT ?agendaitem ?subcaseType
       ?agendaitemType ?isPostponed ?agendaActivityNumber ?position WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
           VALUES ?agendaId { ${sparqlEscapeString(agendaId)} }
-          ?agenda 
+          ?agenda
             mu:uuid ?agendaId ;
             dct:hasPart ?agendaitem .
-          ?agendaitem 
-            ^besluitvorming:genereertAgendapunt 
-            / prov:wasInformedBy 
+          ?agendaitem
+            ^besluitvorming:genereertAgendapunt
+            / prov:wasInformedBy
             / ext:indieningVindtPlaatsTijdens ?subcase ;
             ext:formeelOK ${sparqlEscapeUri(CONSTANTS.FORMALLY_OK_STATUSSES.FORMALLY_OK)} ;
             schema:position ?position .
@@ -41,13 +41,13 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
           OPTIONAL { ?subcase adms:identifier ?agendaActivityNumber }
           ?subcase ext:agendapuntType ?agendaitemType .
           OPTIONAL {
-            ?postponedAgendaitem 
-              ^besluitvorming:genereertAgendapunt 
-              / prov:wasInformedBy 
+            ?postponedAgendaitem
+              ^besluitvorming:genereertAgendapunt
+              / prov:wasInformedBy
               / ext:indieningVindtPlaatsTijdens ?subcase .
-            ?postponedAgendaitem 
-              ^dct:subject 
-              / besluitvorming:heeftBeslissing 
+            ?postponedAgendaitem
+              ^dct:subject
+              / besluitvorming:heeftBeslissing
               / besluitvorming:resultaat ${sparqlEscapeUri(
                 CONSTANTS.DECISION_RESULT_CODES.UITGESTELD
               )} .
@@ -87,7 +87,7 @@ async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
         mu:uuid ${sparqlEscapeString(agendaId)} ;
         dct:hasPart ?agendaitem .
       ?agendaitem
-        a besluit:Agendapunt ;        
+        a besluit:Agendapunt ;
         besluitvorming:geagendeerdStuk ?uri .
 
       ?uri dct:title ?title .
@@ -144,7 +144,7 @@ async function getLastAgendaActivityNumber(
 
     SELECT (MAX(?agendaActivityNumber) AS ?maxNumber) WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-          ?subcase 
+          ?subcase
             ${
               type === "decree"
                 ? `dct:type ${sparqlEscapeUri(
@@ -157,30 +157,32 @@ async function getLastAgendaActivityNumber(
                   )}`
             } ;
             adms:identifier ?agendaActivityNumber .
-          ?agendaitem 
-            ^besluitvorming:genereertAgendapunt 
-              / prov:wasInformedBy 
+          ?agendaitem
+            ^besluitvorming:genereertAgendapunt
+              / prov:wasInformedBy
               / ext:indieningVindtPlaatsTijdens ?subcase .
-          ?agendaStatusActivity 
+          ?agendaStatusActivity
             prov:used ?agenda ;
             generiek:bewerking ${sparqlEscapeUri(
               CONSTANTS.AGENDA_STATUSSES.APPROVED
             )} ;
             prov:startedAtTime ?agendaApprovedDateTime .
-          ?agenda 
+          ?agenda
             besluitvorming:isAgendaVoor ?meeting ;
             dct:hasPart ?agendaitem .
           ${
             isPvv
               ? `
-              MINUS { 
-                ?meeting 
-                  dct:type ${sparqlEscapeUri(CONSTANTS.MEETING_TYPES.PVV)} . 
-              }
+                ?meeting
+                  dct:type ${sparqlEscapeUri(CONSTANTS.MEETING_TYPES.PVV)} .
             `
-              : ""
+              :  `MINUS {
+                ?meeting
+                  dct:type ${sparqlEscapeUri(CONSTANTS.MEETING_TYPES.PVV)} .
+              }`
           }
-          FILTER (YEAR(?agendaApprovedDateTime) = ${year})
+          FILTER (?agendaApprovedDateTime >= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
+          FILTER (?agendaApprovedDateTime <= "${year}-12-31T23:59:59.999Z"^^xsd:dateTime)
       }
     }
   `;
@@ -190,7 +192,7 @@ async function getLastAgendaActivityNumber(
   const maxNumber = parsed[0]?.["maxNumber"];
 
   if (!maxNumber) {
-    return 1;
+    return 0;
   }
   if (typeof maxNumber !== "number") throw new Error("Should never happen");
 
@@ -209,7 +211,7 @@ async function getAgenda(agendaId: string): Promise<Agenda | null> {
         ?agenda
           mu:uuid ${sparqlEscapeString(agendaId)} ;
           besluitvorming:isAgendaVoor ?meeting .
-        ?meeting 
+        ?meeting
           besluit:geplandeStart ?plannedStart ;
           dct:type ?meetingType .
       }
@@ -272,11 +274,11 @@ async function updateAgendaActivityNumber(
     }
     WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-        ${sparqlEscapeUri(agendaitemUri)} 
-          ^besluitvorming:genereertAgendapunt 
-          / prov:wasInformedBy 
+        ${sparqlEscapeUri(agendaitemUri)}
+          ^besluitvorming:genereertAgendapunt
+          / prov:wasInformedBy
           / ext:indieningVindtPlaatsTijdens ?subcase .
-        
+
         FILTER(NOT EXISTS { ?subcase adms:identifier [] } ) .
       }
     }

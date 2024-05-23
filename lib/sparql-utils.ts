@@ -39,7 +39,7 @@ const prefixes = {
   sign: "http://mu.semte.ch/vocabularies/ext/handtekenen/",
   skos: "http://www.w3.org/2004/02/skos/core#",
   xsd: "http://www.w3.org/2001/XMLSchema#",
-  generiek: "https://data.vlaanderen.be/ns/generiek#",
+  generiek: "http://data.vlaanderen.be/ns/generiek#",
 };
 
 const prefixHeaderLines = Object.fromEntries(
@@ -140,6 +140,11 @@ function parseSparqlResponse(
         typeof bindingVar.value === "string"
       ) {
         obj[varKey] = new Date(bindingVar.value);
+      } else if (
+        bindingVar.datatype === "http://www.w3.org/2001/XMLSchema#integer" &&
+        typeof bindingVar.value !== "boolean"
+      ) {
+        obj[varKey] = +bindingVar.value;
       } else {
         obj[varKey] = bindingVar.value;
       }
