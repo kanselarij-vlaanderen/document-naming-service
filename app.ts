@@ -18,6 +18,7 @@ import {
 } from "./lib/jobs";
 import { dasherize, getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
+import { addPieceOriginalName } from "./lib/add-piece-original-name";
 
 type FileMapping = {
   uri: string;
@@ -105,6 +106,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
       for (const piece of piecesResults) {
         const newName = mappingMap.get(piece.uri) ?? piece.title;
         await updatePieceName(piece.uri, newName);
+        await addPieceOriginalName(piece.uri, piece.title);
       }
       await updateAgendaActivityNumber(
         agendaitem.uri,
