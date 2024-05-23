@@ -18,6 +18,7 @@ import {
 } from "./lib/jobs";
 import { dasherize, getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
+import { addPieceOriginalName } from "./lib/add-piece-original-name";
 
 type FileMapping = {
   uri: string;
@@ -105,6 +106,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
       for (const piece of piecesResults) {
         const newName = mappingMap.get(piece.uri) ?? piece.title;
         await updatePieceName(piece.uri, newName);
+        await addPieceOriginalName(piece.uri, piece.title);
       }
       await updateAgendaActivityNumber(
         agendaitem.uri,
@@ -266,7 +268,7 @@ function generateName(
       ? "MED"
       : "DEC";
 
-  const documentTypePart = piece.type ? `-${capitalizeString(piece.type)}` : "";
+  const documentTypePart = piece.type ? `-${piece.type}` : "";
 
   const documentVersionPart =
     piece.revision > 1
@@ -275,23 +277,10 @@ function generateName(
         } `.toUpperCase()
       : "";
 
-  const fileTypePart = piece.fileExtension;
-  const subjectPart = dasherize(extractSubject(piece.title));
+  const subjectPart = dasherize(piece.title);
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
-    `${documentVersionPart}${subjectPart}${documentTypePart}.${fileTypePart}`
+    `${documentVersionPart}${subjectPart}${documentTypePart}`
   );
-}
-
-function capitalizeString(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-}
-
-function extractSubject(pieceTitle: string): string {
-  // Might need to edit this regex
-  const regex = new RegExp("^(?<subject>.+)-.*$");
-  const match = regex.exec(pieceTitle);
-  if (!match?.groups?.["subject"]) return "";
-  else return match.groups["subject"];
 }
