@@ -34,6 +34,9 @@ export default {
     DESIGN:
       "http://themis.vlaanderen.be/id/concept/agenda-status/b3d8a99b-0a7e-419e-8474-4b508fa7ab91",
   },
+  FORMALLY_OK_STATUSSES: {
+    FORMALLY_OK: "http://kanselarij.vo.data.gift/id/concept/goedkeurings-statussen/CC12A7DB-A73A-4589-9D53-F3C2F4A40636",
+  },
   LATIN_ADVERBIAL_NUMERALS: [
     "",
     "bis",
