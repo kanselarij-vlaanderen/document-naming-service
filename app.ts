@@ -46,7 +46,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
     return res.status(400).send(`No clientUpdateTimestamp supplied.`);
   }
   const lastClientUpdateTimestamp = new Date(req.body.clientUpdateTimestamp);
-  const latestJobTimestamp = await latestJobFinishedAt(agenda.uri);
+  const latestJobTimestamp = await latestJobFinishedAt();
 
   if (latestJobTimestamp && latestJobTimestamp > lastClientUpdateTimestamp) {
     return res
