@@ -108,21 +108,20 @@ async function updateJobStatus(
   await update(queryString);
 }
 
-async function latestJobFinishedAt(agendaId: string): Promise<Date | null> {
+async function latestJobFinishedAt(): Promise<Date | null> {
   const { KANSELARIJ } = CONSTANTS.GRAPHS;
   const { SUCCESS } = CONSTANTS.JOB.STATUS;
   const queryString = `
     ${prefixHeaderLines.ext}
     ${prefixHeaderLines.prov}
-    SELECT ?job
+    SELECT ?job ?time
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
-        ?job 
-          prov:used ${sparqlEscapeString(agendaId)} ;
+        ?job
           ext:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }
-    } ORDER BY ?time LIMIT 1
+    } ORDER BY DESC(?time) LIMIT 1
   `;
   const response = await query(queryString);
   const parsed = parseSparqlResponse(response);

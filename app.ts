@@ -32,31 +32,41 @@ app.get("/agenda/:agenda_id", getNamedPieces);
 app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
   const agendaId = req.params["agenda_id"];
   if (!agendaId) {
-    return res.status(404).send(`No agenda id supplied`);
+    return res.status(404).send(JSON.stringify({
+      error: `No agenda id supplied`
+    }));
   }
 
   const agenda = await getAgenda(agendaId);
   if (!agenda) {
     return res
       .status(404)
-      .send(`Agenda with id ${agendaId} could not be found.`);
+      .send(JSON.stringify({
+        error: `Agenda with id ${agendaId} could not be found.`
+      }));
   }
 
   if (!req.body.clientUpdateTimestamp) {
-    return res.status(400).send(`No clientUpdateTimestamp supplied.`);
+    return res.status(400).send(JSON.stringify({
+      error: `No clientUpdateTimestamp supplied.`
+    }));
   }
   const lastClientUpdateTimestamp = new Date(req.body.clientUpdateTimestamp);
-  const latestJobTimestamp = await latestJobFinishedAt(agenda.uri);
+  const latestJobTimestamp = await latestJobFinishedAt();
 
   if (latestJobTimestamp && latestJobTimestamp > lastClientUpdateTimestamp) {
     return res
       .status(409)
-      .send("This agenda is approved already, please reload the page.");
+      .send(JSON.stringify({
+        error:`Er werd een andere agenda goedgekeurd sinds ${lastClientUpdateTimestamp.toLocaleString('nl-BE')}, ververs de pagina.`,
+      }));
   }
 
   const mappings = req.body.data as FileMapping[];
   if (!mappings) {
-    return res.status(400).send(`No piece name mappings supplied`);
+    return res.status(400).send(JSON.stringify({
+      error: `No piece name mappings supplied`
+    }));
   }
   const mappingMap = new Map(
     mappings.map(({ uri, generatedName }) => [uri, generatedName])
@@ -69,14 +79,9 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 
   const authorized = await jobExists(job.uri);
   if (!authorized) {
-    return res.status(403).send({
-      errors: [
-        {
-          detail:
-            "You don't have the required access rights to change change document names",
-        },
-      ],
-    });
+    return res.status(403).send(JSON.stringify({
+      error: "You don't have the required access rights to change change document names",
+    }));
   }
 
   const payload = {

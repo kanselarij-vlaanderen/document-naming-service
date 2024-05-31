@@ -238,18 +238,44 @@ async function updatePieceName(
   pieceUri: string,
   newName: string
 ): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
   const queryString = `
+    ${prefixHeaderLines.dbpedia}
     ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
 
-    DELETE WHERE {
+    DELETE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-        ${sparqlEscapeUri(pieceUri)} dct:title ?title .
+        ${escapedPiece} dct:title ?title .
+        ?file nfo:fileName ?fileName .
+        ?derived nfo:fileName ?derivedFileName .
       }
     }
-    ;
-    INSERT DATA {
+    INSERT {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-        ${sparqlEscapeUri(pieceUri)} dct:title ${sparqlEscapeString(newName)} .
+        ${escapedPiece} dct:title ${sparqlEscapeString(newName)} .
+        ?file nfo:fileName ?newFileName .
+        ?derived nfo:fileName ?newDerivedFileName .
+      }
+    }
+    WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ${escapedPiece} dct:title ?title .
+        OPTIONAL {
+          ${escapedPiece} prov:value ?file .
+          ?file 
+            nfo:fileName ?fileName ;
+            dbpedia:fileExtension ?extension .
+          OPTIONAL {
+            ?derived 
+              prov:hadPrimarySource ?file ;
+              nfo:fileName ?derivedFileName ;
+              dbpedia:fileExtension ?derivedFileExtension .
+          }
+        }
+        BIND (CONCAT(${sparqlEscapeString(newName)}, ".", ?extension) as ?newFileName)
+        BIND (CONCAT(${sparqlEscapeString(newName)}, ".", ?derivedFileExtension) as ?newDerivedFileName)
       }
     }
   `;
