@@ -114,14 +114,14 @@ async function latestJobFinishedAt(): Promise<Date | null> {
   const queryString = `
     ${prefixHeaderLines.ext}
     ${prefixHeaderLines.prov}
-    SELECT ?job
+    SELECT ?job ?time
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
-        ?job 
+        ?job
           ext:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }
-    } ORDER BY ?time LIMIT 1
+    } ORDER BY DESC(?time) LIMIT 1
   `;
   const response = await query(queryString);
   const parsed = parseSparqlResponse(response);
