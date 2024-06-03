@@ -118,6 +118,7 @@ async function latestJobFinishedAt(): Promise<Date | null> {
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
         ?job
+          a ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
           ext:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }
