@@ -100,6 +100,7 @@ async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
   return parsed as Piece[];
 }
 
+// unused function
 async function getSubcasePieces(subcase: string) {
   const queryString = `
 ${prefixHeaderLines.prov}
