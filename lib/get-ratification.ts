@@ -30,7 +30,6 @@ export async function getRatification(
     destIdProp: "uri",
     propShapers: {
       title: { kind: "literal" },
-      type: { kind: "constant", value: CONSTANTS.PIECE_TYPES.RATIFICATION },
       fileExtension: { kind: "literal" },
     },
   });
