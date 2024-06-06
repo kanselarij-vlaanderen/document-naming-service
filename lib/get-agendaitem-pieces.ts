@@ -4,6 +4,7 @@ import CONSTANTS from "../constants";
 import { Piece } from "../types/types";
 
 async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
+  const { INTERN_SECRETARIE } = CONSTANTS.ACCESS_LEVELS;
   const queryString = `
     ${prefixHeaderLines.besluitvorming}
     ${prefixHeaderLines.dbpedia}
@@ -30,8 +31,12 @@ async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
           FILTER NOT EXISTS { [] pav:previousVersion ?piece }
           ?piece
             dct:title ?pieceName ;
+            besluitvorming:vertrouwelijkheidsniveau ?accessLevel ;
             prov:value / dbpedia:fileExtension ?fileExtension .
           FILTER NOT EXISTS { ?piece dct:alternative ?originalName }
+          FILTER ( 
+            ?accessLevel != ${sparqlEscapeUri(INTERN_SECRETARIE)} 
+          )
           ?documentContainer 
             dossier:Collectie.bestaatUit ?piece ; 
             schema:position ?piecePosition .
