@@ -108,7 +108,8 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
       const piecesResults = await getAgendaitemPieces(agendaitem.uri);
       const ratification = await getRatification(agendaitem.uri);
       if (ratification) {
-        ratification.position = piecesResults.length + 1;
+        const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+        ratification.position = allPieces.length + 1;
         piecesResults.push(ratification);
       }
       ensureAgendaActivityNumber(agendaitem, agenda, counters);
@@ -202,7 +203,8 @@ async function getNamedPieces(req: Request, res: Response) {
     const piecesResults = await getAgendaitemPieces(agendaitem.uri);
     const ratification = await getRatification(agendaitem.uri);
     if (ratification) {
-      ratification.position = piecesResults.length + 1;
+      const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+      ratification.position = allPieces.length + 1;
       piecesResults.push(ratification);
     }
     ensureAgendaActivityNumber(agendaitem, agenda, counters);

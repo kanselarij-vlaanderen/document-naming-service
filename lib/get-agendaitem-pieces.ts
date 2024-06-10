@@ -3,7 +3,10 @@ import { parseAndReshape, prefixHeaderLines } from "./sparql-utils";
 import CONSTANTS from "../constants";
 import { Piece } from "../types/types";
 
-async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
+async function getAgendaitemPieces(
+  agendaitem: string,
+  includeNamed: boolean = false
+): Promise<Piece[]> {
   const { INTERN_SECRETARIE } = CONSTANTS.ACCESS_LEVELS;
   const queryString = `
     ${prefixHeaderLines.besluitvorming}
@@ -33,7 +36,11 @@ async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
             dct:title ?pieceName ;
             besluitvorming:vertrouwelijkheidsniveau ?accessLevel ;
             prov:value / dbpedia:fileExtension ?fileExtension .
-          FILTER NOT EXISTS { ?piece dct:alternative ?originalName }
+          ${
+            !includeNamed
+              ? "FILTER NOT EXISTS { ?piece dct:alternative ?originalName }"
+              : ""
+          }
           FILTER ( 
             ?accessLevel != ${sparqlEscapeUri(INTERN_SECRETARIE)} 
           )
