@@ -16,7 +16,7 @@ import {
   latestJobFinishedAt,
   updateJobStatus,
 } from "./lib/jobs";
-import { dasherize, getErrorMessage } from "./lib/utils";
+import { getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
 import { addPieceOriginalName } from "./lib/add-piece-original-name";
 
@@ -274,18 +274,10 @@ function generateName(
       : "DEC";
 
   const documentTypePart = piece.type ? ` - ${piece.type}` : "";
-
-  const documentVersionPart =
-    piece.revision > 1
-      ? `${
-          CONSTANTS.LATIN_ADVERBIAL_NUMERALS[piece.revision - 1]
-        } `.toUpperCase()
-      : "";
-
   const subjectPart = piece.title.trim();
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
-    `${documentVersionPart}${subjectPart}${documentTypePart}`
+    `${subjectPart}${documentTypePart}`
   );
 }
