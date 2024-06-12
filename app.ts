@@ -19,6 +19,7 @@ import {
 import { getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
 import { addPieceOriginalName } from "./lib/add-piece-original-name";
+import { getRatification } from './lib/get-ratification';
 
 type FileMapping = {
   uri: string;
@@ -105,6 +106,12 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 
     for (const agendaitem of agendaitems) {
       const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+      const ratification = await getRatification(agendaitem.uri);
+      if (ratification) {
+        const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+        ratification.position = allPieces.length + 1;
+        piecesResults.push(ratification);
+      }
       ensureAgendaActivityNumber(agendaitem, agenda, counters);
       if (agendaitem.agendaActivityNumber === undefined)
         throw new Error("No agendaActivityNumber (should never happen)");
@@ -194,6 +201,12 @@ async function getNamedPieces(req: Request, res: Response) {
 
   for (const agendaitem of agendaitems) {
     const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+    const ratification = await getRatification(agendaitem.uri);
+    if (ratification) {
+      const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+      ratification.position = allPieces.length + 1;
+      piecesResults.push(ratification);
+    }
     ensureAgendaActivityNumber(agendaitem, agenda, counters);
 
     for (const piece of piecesResults) {
