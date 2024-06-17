@@ -272,8 +272,12 @@ function generateName(
       : agendaitemPurpose === "med"
       ? "MED"
       : "DEC";
-
-  const documentTypePart = piece.type ? ` - ${piece.type}` : "";
+  let documentTypePart = piece.type ? ` - ${piece.type}` : "";
+  // if the type is not a capitalized abbreviation it should be all lowercase.
+  const lastChar = documentTypePart?.slice(-1);
+  if (lastChar && lastChar == lastChar.toLowerCase()) {
+    documentTypePart = documentTypePart.toLowerCase() || "";
+  }
   const subjectPart = piece.title.trim();
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
