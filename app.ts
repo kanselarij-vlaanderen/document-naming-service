@@ -157,7 +157,7 @@ async function initCounters(
   agenda: Agenda
 ): Promise<AgendaActivityCounterDict> {
   if (!agenda.meeting.plannedStart) {
-    throw new Error("Agenda needs a plannedStart");
+    throw new Error("Meeting needs a plannedStart");
   }
   const year = agenda.meeting.plannedStart.getFullYear();
   return {
@@ -177,32 +177,46 @@ async function initCounters(
 async function getNamedPieces(req: Request, res: Response) {
   const agendaId = req.params["agenda_id"];
   if (!agendaId) {
-    return res.status(404).send(`No agenda id supplied`);
+    return res.status(404).send(
+      JSON.stringify({
+        error: `No agenda id supplied`,
+      })
+    );
   }
 
   const agenda = await getAgenda(agendaId);
   if (!agenda) {
-    return res
-      .status(404)
-      .send(`Agenda with id ${agendaId} could not be found.`);
+    return res.status(404).send(
+      JSON.stringify({
+        error: `Agenda with id ${agendaId} could not be found.`,
+      })
+    );
   }
 
-  const agendaitems = await getSortedAgendaitems(agendaId);
-  const counters = await initCounters(agenda);
+  try {
+    const agendaitems = await getSortedAgendaitems(agendaId);
+    const counters = await initCounters(agenda);
 
-  const mappings: FileMapping[] = [];
+    const mappings: FileMapping[] = [];
 
-  for (const agendaitem of agendaitems) {
-    const piecesResults = await getAgendaitemPieces(agendaitem.uri);
-    ensureAgendaActivityNumber(agendaitem, agenda, counters);
+    for (const agendaitem of agendaitems) {
+      const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+      ensureAgendaActivityNumber(agendaitem, agenda, counters);
 
-    for (const piece of piecesResults) {
-      const generatedName = generateName(agenda, agendaitem, piece);
-      mappings.push({ uri: piece.uri, generatedName });
+      for (const piece of piecesResults) {
+        const generatedName = generateName(agenda, agendaitem, piece);
+        mappings.push({ uri: piece.uri, generatedName });
+      }
     }
-  }
 
-  return res.send(mappings);
+    return res.send(mappings);
+  } catch (error: any) {
+    return res.status(500).send(
+      JSON.stringify({
+        error: `document-naming service ran into an error: ${error?.message}`,
+      })
+    );
+  }
 }
 
 function readCounter(
