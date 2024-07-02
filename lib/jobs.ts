@@ -62,6 +62,7 @@ async function createNamingJob(
           ext:status ${sparqlEscapeString(job.status)} ;
           prov:used ${sparqlEscapeUri(agendaUri)} ;
           ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`).join('        \n')}
+          prov:startedAtTime ${sparqlEscapeDateTime(job.created)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
   await update(queryString);

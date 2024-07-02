@@ -164,7 +164,7 @@ async function initCounters(
   agenda: Agenda
 ): Promise<AgendaActivityCounterDict> {
   if (!agenda.meeting.plannedStart) {
-    throw new Error("Agenda needs a plannedStart");
+    throw new Error("Meeting needs a plannedStart");
   }
   const year = agenda.meeting.plannedStart.getFullYear();
   return {
@@ -184,38 +184,52 @@ async function initCounters(
 async function getNamedPieces(req: Request, res: Response) {
   const agendaId = req.params["agenda_id"];
   if (!agendaId) {
-    return res.status(404).send(`No agenda id supplied`);
+    return res.status(404).send(
+      JSON.stringify({
+        error: `No agenda id supplied`,
+      })
+    );
   }
 
   const agenda = await getAgenda(agendaId);
   if (!agenda) {
-    return res
-      .status(404)
-      .send(`Agenda with id ${agendaId} could not be found.`);
+    return res.status(404).send(
+      JSON.stringify({
+        error: `Agenda with id ${agendaId} could not be found.`,
+      })
+    );
   }
 
-  const agendaitems = await getSortedAgendaitems(agendaId);
-  const counters = await initCounters(agenda);
+  try {
+    const agendaitems = await getSortedAgendaitems(agendaId);
+    const counters = await initCounters(agenda);
 
-  const mappings: FileMapping[] = [];
+    const mappings: FileMapping[] = [];
 
-  for (const agendaitem of agendaitems) {
-    const piecesResults = await getAgendaitemPieces(agendaitem.uri);
-    const ratification = await getRatification(agendaitem.uri);
-    if (ratification) {
-      const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
-      ratification.position = allPieces.length + 1;
-      piecesResults.push(ratification);
+    for (const agendaitem of agendaitems) {
+      const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+      const ratification = await getRatification(agendaitem.uri);
+      if (ratification) {
+        const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+        ratification.position = allPieces.length + 1;
+        piecesResults.push(ratification);
+      }
+      ensureAgendaActivityNumber(agendaitem, agenda, counters);
+
+      for (const piece of piecesResults) {
+        const generatedName = generateName(agenda, agendaitem, piece);
+        mappings.push({ uri: piece.uri, generatedName });
+      }
     }
-    ensureAgendaActivityNumber(agendaitem, agenda, counters);
 
-    for (const piece of piecesResults) {
-      const generatedName = generateName(agenda, agendaitem, piece);
-      mappings.push({ uri: piece.uri, generatedName });
-    }
+    return res.send(mappings);
+  } catch (error: any) {
+    return res.status(500).send(
+      JSON.stringify({
+        error: `document-naming service ran into an error: ${error?.message}`,
+      })
+    );
   }
-
-  return res.send(mappings);
 }
 
 function readCounter(
@@ -285,20 +299,16 @@ function generateName(
       : agendaitemPurpose === "med"
       ? "MED"
       : "DEC";
-
-  const documentTypePart = piece.type ? ` - ${piece.type}` : "";
-
-  const documentVersionPart =
-    piece.revision > 1
-      ? `${
-          CONSTANTS.LATIN_ADVERBIAL_NUMERALS[piece.revision - 1]
-        } `.toUpperCase()
-      : "";
-
+  let documentTypePart = piece.type ? ` - ${piece.type}` : "";
+  // if the type is not a capitalized abbreviation it should be all lowercase.
+  const lastChar = documentTypePart?.slice(-1);
+  if (lastChar && lastChar == lastChar.toLowerCase()) {
+    documentTypePart = documentTypePart.toLowerCase() || "";
+  }
   const subjectPart = piece.title.trim();
   return (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
-    `${documentVersionPart}${subjectPart}${documentTypePart}`
+    `${subjectPart}${documentTypePart}`
   );
 }
