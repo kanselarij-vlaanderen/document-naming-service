@@ -297,7 +297,7 @@ function generateName(
       piece.revision > 1
         ? `${
             CONSTANTS.LATIN_ADVERBIAL_NUMERALS[piece.revision - 1]
-          } `.toUpperCase()
+          }`.toUpperCase()
         : "";
 
   const removeVersionSuffix = (title: string) => {
@@ -319,9 +319,10 @@ function generateName(
   
   const title = piece.title.trim();
   const subjectPart = removeVersionSuffix(title);
-  return (
+  const fullGeneratedName = (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
     `${subjectPart}${documentTypePart} ${documentVersionPart}`
   );
+  return fullGeneratedName.trim();
 }
