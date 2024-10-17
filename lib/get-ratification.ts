@@ -12,15 +12,32 @@ export async function getRatification(
   ${prefixHeaderLines.dbpedia}
   ${prefixHeaderLines.dct}
   ${prefixHeaderLines.prov}
+  ${prefixHeaderLines.pav}
+  ${prefixHeaderLines.skos}
+  ${prefixHeaderLines.dossier}
 
-  SELECT ?piece ?title ?fileExtension
+  SELECT ?piece ?pieceName ?pieceType
+    ?fileExtension (COUNT(?prevVersion) as ?revisionNumber)
+  FROM ${sparqlEscapeUri(CONSTANTS.GRAPHS.PUBLIC)}
+  FROM ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)}
   WHERE {
-    ?subcase 
-      ^besluitvorming:vindtPlaatsTijdens/besluitvorming:genereertAgendapunt ${sparqlEscapeUri(agendaItemUri)} ; 
-      ext:heeftBekrachtiging ?piece .
-    ?piece
-      dct:title ?title ;
-      prov:value / dbpedia:fileExtension ?fileExtension .
+    ?piece pav:previousVersion* ?prevVersion .
+    {
+      SELECT DISTINCT ?piece ?pieceName ?pieceType ?fileExtension
+      WHERE {
+        ?subcase 
+          ^besluitvorming:vindtPlaatsTijdens/besluitvorming:genereertAgendapunt ${sparqlEscapeUri(agendaItemUri)} ; 
+          ext:heeftBekrachtiging ?piece .
+        FILTER NOT EXISTS { [] pav:previousVersion ?piece }
+        ?piece
+          dct:title ?pieceName ;
+          prov:value / dbpedia:fileExtension ?fileExtension .
+        FILTER NOT EXISTS { ?piece dct:alternative ?originalName }
+        ?documentContainer 
+          dossier:Collectie.bestaatUit ?piece .
+        OPTIONAL { ?documentContainer dct:type/skos:prefLabel ?pieceType . }
+      }
+    }
   } LIMIT 1
   `;
   const response = await query(queryString);
@@ -29,8 +46,10 @@ export async function getRatification(
     idProp: "piece",
     destIdProp: "uri",
     propShapers: {
-      title: { kind: "literal" },
-      fileExtension: { kind: "literal" },
+      title: { kind: "literal", sourceProp: "pieceName" },
+      type: { kind: "literal", sourceProp: "pieceType" },
+      fileExtension: { kind: "literal", sourceProp: "fileExtension" },
+      revision: { kind: "literal", sourceProp: "revisionNumber" },
     },
   });
 
