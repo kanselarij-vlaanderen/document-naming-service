@@ -27,7 +27,6 @@ async function getAgendaitemPieces(agendaitem: string): Promise<Piece[]> {
         WHERE {
           ${sparqlEscapeUri(agendaitem)} 
             besluitvorming:geagendeerdStuk ?piece .
-          FILTER NOT EXISTS { [] pav:previousVersion ?piece }
           ?piece
             dct:title ?pieceName ;
             prov:value / dbpedia:fileExtension ?fileExtension .
