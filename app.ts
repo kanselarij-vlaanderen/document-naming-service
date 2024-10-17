@@ -109,7 +109,8 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
       const ratification = await getRatification(agendaitem.uri);
       if (ratification) {
         const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
-        ratification.position = allPieces.length + 1;
+        const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
+        ratification.position = maxPosition + 1;
         piecesResults.push(ratification);
       }
       ensureAgendaActivityNumber(agendaitem, agenda, counters);
@@ -211,7 +212,8 @@ async function getNamedPieces(req: Request, res: Response) {
       const ratification = await getRatification(agendaitem.uri);
       if (ratification) {
         const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
-        ratification.position = allPieces.length + 1;
+        const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
+        ratification.position = maxPosition + 1;
         piecesResults.push(ratification);
       }
       ensureAgendaActivityNumber(agendaitem, agenda, counters);
