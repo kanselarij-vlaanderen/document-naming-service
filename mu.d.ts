@@ -12,7 +12,9 @@ declare module "mu" {
         {
           type: "literal" | "typed-literal" | "uri";
           "xml:lang"?: string;
-          datatype?: "http://www.w3.org/2001/XMLSchema#dateTime";
+          datatype?:
+            | "http://www.w3.org/2001/XMLSchema#dateTime"
+            | "http://www.w3.org/2001/XMLSchema#integer";
           value: SparqlClientValue;
         }
       >[];
