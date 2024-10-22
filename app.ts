@@ -307,10 +307,37 @@ function generateName(
   if (lastChar && lastChar == lastChar.toLowerCase()) {
     documentTypePart = documentTypePart.toLowerCase() || "";
   }
-  const subjectPart = piece.title.trim();
-  return (
+
+  const documentVersionPart =
+      piece.revision > 1
+        ? `${
+            CONSTANTS.LATIN_ADVERBIAL_NUMERALS[piece.revision - 1]
+          }`.toUpperCase()
+        : "";
+
+  const removeVersionSuffix = (title: string) => {
+    const versionSuffixes = `${
+        `(${Object.values(CONSTANTS.LATIN_ADVERBIAL_NUMERALS)
+          .map((suffix) => suffix.toUpperCase())
+          .join(')|(')})`
+        .replace('()|', '')
+        }`;
+
+    const regex = new RegExp(`(.*?)${versionSuffixes}?$`);
+
+    return regex.test(title)
+    ? title
+      .replace(new RegExp(`${versionSuffixes}$`, 'ui'), '')
+      .trim()
+    : title;
+  };
+  
+  const title = piece.title.trim();
+  const subjectPart = removeVersionSuffix(title);
+  const fullGeneratedName = (
     `VR ${plannedStart.getFullYear()} ${dayPart}${monthPart} ${vvPart}` +
     `${agendaitemPurposePart}.${agendaActivityNumberPart}-${piece.position} ` +
-    `${subjectPart}${documentTypePart}`
+    `${subjectPart}${documentTypePart} ${documentVersionPart}`
   );
+  return fullGeneratedName.trim();
 }

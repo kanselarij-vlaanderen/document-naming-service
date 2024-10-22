@@ -31,7 +31,6 @@ async function getAgendaitemPieces(
         WHERE {
           ${sparqlEscapeUri(agendaitem)} 
             besluitvorming:geagendeerdStuk ?piece .
-          FILTER NOT EXISTS { [] pav:previousVersion ?piece }
           ?piece
             dct:title ?pieceName ;
             besluitvorming:vertrouwelijkheidsniveau ?accessLevel ;
