@@ -9,7 +9,7 @@ type ResourceReshape = {
   idProp: string;
   destIdProp?: string;
   propShapers?: {
-    [propName: string]: ResourceReshape | LiteralReshape;
+    [propName: string]: ResourceReshape | LiteralReshape | ConstantShape;
   };
 };
 
@@ -18,6 +18,11 @@ type LiteralReshape = {
   method?: "takeOne" | "collect";
   sourceProp?: string;
 };
+
+type ConstantShape = {
+  kind: "constant";
+  value: string | number | boolean;
+}
 
 const prefixes = {
   adms: "http://www.w3.org/ns/adms#",
@@ -133,7 +138,7 @@ function parseSparqlResponse(
     if (vars === undefined) return obj;
     vars.forEach((varKey) => {
       const bindingVar = binding[varKey];
-      if (bindingVar === undefined) {
+      if (bindingVar?.value === undefined) {
         return;
       } else if (
         bindingVar.datatype === "http://www.w3.org/2001/XMLSchema#dateTime" &&
@@ -185,6 +190,8 @@ function reshapeParsedResults(
     for (const [propName, shaper] of Object.entries(propShapers ?? {})) {
       if (shaper.kind === "resource") {
         out[propName] = reshapeParsedResults(value, shaper);
+      } else if (shaper.kind === "constant") {
+        out[propName] = shaper.value;
       } else if (shaper.kind === "literal") {
         if (!shaper.method || shaper.method === "takeOne") {
           out[propName] = value[0][shaper.sourceProp ?? propName];

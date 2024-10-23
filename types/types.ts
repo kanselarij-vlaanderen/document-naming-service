@@ -22,7 +22,7 @@ type Piece = {
   uri: string;
   title: string;
   type?: string;
-  position: number;
+  position?: number;
   fileExtension: string;
   revision: number;
 };
