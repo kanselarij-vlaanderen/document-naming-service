@@ -24,6 +24,7 @@ import { getRatification } from './lib/get-ratification';
 type FileMapping = {
   uri: string;
   generatedName: string;
+  agendaitem: Agendaitem;
 };
 
 app.use(bodyParser.json());
@@ -220,7 +221,7 @@ async function getNamedPieces(req: Request, res: Response) {
 
       for (const piece of piecesResults) {
         const generatedName = generateName(agenda, agendaitem, piece);
-        mappings.push({ uri: piece.uri, generatedName });
+        mappings.push({ uri: piece.uri, generatedName, agendaitem });
       }
     }
 
@@ -331,7 +332,7 @@ function generateName(
       .trim()
     : title;
   };
-  
+
   const title = piece.title.trim();
   const subjectPart = removeVersionSuffix(title);
   const fullGeneratedName = (

@@ -24,7 +24,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     ${prefixHeaderLines.schema}
     ${prefixHeaderLines.prov}
 
-    SELECT DISTINCT ?agendaitem ?subcaseType
+    SELECT DISTINCT ?agendaitem ?agendaitemId ?subcaseType
       ?agendaitemType ?isPostponed ?agendaActivityNumber ?position WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
           VALUES ?agendaId { ${sparqlEscapeString(agendaId)} }
@@ -36,6 +36,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
             / prov:wasInformedBy
             / ext:indieningVindtPlaatsTijdens ?subcase ;
             ext:formeelOK ${sparqlEscapeUri(CONSTANTS.FORMALLY_OK_STATUSSES.FORMALLY_OK)} ;
+            mu:uuid ?agendaitemId ;
             schema:position ?position .
           OPTIONAL { ?subcase dct:type ?subcaseType }
           OPTIONAL { ?subcase adms:identifier ?agendaActivityNumber }
@@ -69,6 +70,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     propShapers: {
       subcaseType: { kind: "literal" },
       type: { kind: "literal", sourceProp: "agendaitemType" },
+      id: { kind: "literal", sourceProp: "agendaitemId" },
       isPostponed: { kind: "literal" },
       agendaActivityNumber: { kind: "literal" },
     },
@@ -265,11 +267,11 @@ async function updatePieceName(
         ${escapedPiece} dct:title ?title .
         OPTIONAL {
           ${escapedPiece} prov:value ?file .
-          ?file 
+          ?file
             nfo:fileName ?fileName ;
             dbpedia:fileExtension ?extension .
           OPTIONAL {
-            ?derived 
+            ?derived
               prov:hadPrimarySource ?file ;
               nfo:fileName ?derivedFileName ;
               dbpedia:fileExtension ?derivedFileExtension .
