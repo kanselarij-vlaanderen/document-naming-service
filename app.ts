@@ -210,12 +210,14 @@ async function getNamedPieces(req: Request, res: Response) {
 
     for (const agendaitem of agendaitems) {
       const piecesResults = await getAgendaitemPieces(agendaitem.uri);
-      const ratification = await getRatification(agendaitem.uri);
-      if (ratification) {
-        const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
-        const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
-        ratification.position = maxPosition + 1;
-        piecesResults.push(ratification);
+      if (agendaitem.subcaseType === CONSTANTS.SUBCASE_TYPES.BEKRACHTIGING) {
+        const ratification = await getRatification(agendaitem.uri);
+        if (ratification) {
+          const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+          const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
+          ratification.position = maxPosition + 1;
+          piecesResults.push(ratification);
+        }
       }
       ensureAgendaActivityNumber(agendaitem, agenda, counters);
 
