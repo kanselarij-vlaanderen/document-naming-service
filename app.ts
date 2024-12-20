@@ -330,7 +330,7 @@ function generateName(
 
     return regex.test(title)
     ? title
-      .replace(new RegExp(`${versionSuffixes}$`, 'ui'), '')
+      .replace(new RegExp(`${versionSuffixes}$`, 'u'), '')
       .trim()
     : title;
   };
