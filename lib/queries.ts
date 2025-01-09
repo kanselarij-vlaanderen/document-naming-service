@@ -138,6 +138,7 @@ async function getLastAgendaActivityNumber(
 ): Promise<number> {
   const queryString = `
     ${prefixHeaderLines.adms}
+    ${prefixHeaderLines.besluit}
     ${prefixHeaderLines.besluitvorming}
     ${prefixHeaderLines.dct}
     ${prefixHeaderLines.ext}
@@ -172,7 +173,11 @@ async function getLastAgendaActivityNumber(
             prov:startedAtTime ?agendaApprovedDateTime .
           ?agenda
             besluitvorming:isAgendaVoor ?meeting ;
+
             dct:hasPart ?agendaitem .
+          ?meeting besluit:geplandeStart ?plannedStart .
+          FILTER (?plannedStart >= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
+          FILTER (?plannedStart <= "${year}-12-31T23:59:59.999Z"^^xsd:dateTime)
           ${
             isPvv
               ? `
