@@ -13,7 +13,7 @@ async function getOrderedAgendaitems(year: number) {
 
   const queryString = `PREFIX schema: <http://schema.org/>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-PREFIX generiek: <http://data.vlaanderen.be/ns/generiek#>
+PREFIX generiek: <https://data.vlaanderen.be/ns/generiek#>
 PREFIX dct: <http://purl.org/dc/terms/>
 PREFIX besluitvor: <https://data.vlaanderen.be/ns/besluitvorming#>
 PREFIX prov: <http://www.w3.org/ns/prov#>

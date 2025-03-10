@@ -44,7 +44,7 @@ const prefixes = {
   sign: "http://mu.semte.ch/vocabularies/ext/handtekenen/",
   skos: "http://www.w3.org/2004/02/skos/core#",
   xsd: "http://www.w3.org/2001/XMLSchema#",
-  generiek: "http://data.vlaanderen.be/ns/generiek#",
+  generiek: "https://data.vlaanderen.be/ns/generiek#",
 };
 
 const prefixHeaderLines = Object.fromEntries(
