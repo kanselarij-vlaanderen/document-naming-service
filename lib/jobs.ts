@@ -7,7 +7,6 @@ import {
   uuid as generateUuid,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Piece } from "../types/types";
 import { parseSparqlResponse, prefixHeaderLines } from "./sparql-utils";
 
 type DocumentNamingJob = {
@@ -19,8 +18,8 @@ type DocumentNamingJob = {
 
 const RDF_JOB_TYPE = CONSTANTS.JOB.RDF_TYPE;
 
-const jobStatusses = CONSTANTS.JOB.STATUS;
-type JobStatus = (typeof jobStatusses)[keyof typeof jobStatusses];
+const jobStatuses = CONSTANTS.JOB.STATUSES;
+type JobStatus = (typeof jobStatuses)[keyof typeof jobStatuses];
 
 async function jobExists(uri: string): Promise<boolean> {
   const queryString = `
@@ -39,12 +38,12 @@ async function createNamingJob(
 ): Promise<DocumentNamingJob> {
   const RESOURCE_BASE = CONSTANTS.JOB.RDF_RESOURCE_BASE;
   const JSONAPI_JOB_TYPE = CONSTANTS.JOB.JSONAPI_JOB_TYPE;
-  const { RUNNING } = CONSTANTS.JOB.STATUS;
+  const { BUSY } = CONSTANTS.JOB.STATUSES;
   const uuid = generateUuid();
   const job = {
     uri: RESOURCE_BASE + `/${JSONAPI_JOB_TYPE}/${uuid}`,
     id: uuid,
-    status: RUNNING,
+    status: BUSY,
     created: new Date(),
   };
   const queryString = `
@@ -53,14 +52,15 @@ async function createNamingJob(
   ${prefixHeaderLines.ext}
   ${prefixHeaderLines.mu}
   ${prefixHeaderLines.prov}
+  ${prefixHeaderLines.adms}
 
   INSERT DATA {
       ${sparqlEscapeUri(job.uri)} a cogs:Job , ${sparqlEscapeUri(
     RDF_JOB_TYPE
   )} ;
           mu:uuid ${sparqlEscapeString(job.id)} ;
-          ext:status ${sparqlEscapeString(job.status)} ;
-          prov:used ${sparqlEscapeUri(agendaUri)} ;
+          adms:status ${sparqlEscapeString(job.status)} ;
+          dct:source ${sparqlEscapeUri(agendaUri)} ;
           ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`).join('        \n')}
           prov:startedAtTime ${sparqlEscapeDateTime(job.created)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
@@ -74,10 +74,10 @@ async function updateJobStatus(
   status: JobStatus,
   errorMessage?: string
 ): Promise<void> {
-  const { SUCCESS, FAIL } = CONSTANTS.JOB.STATUS;
+  const { SUCCESS, FAILED } = CONSTANTS.JOB.STATUSES;
   const time = new Date();
   let timePred;
-  if (status === SUCCESS || status === FAIL) {
+  if (status === SUCCESS || status === FAILED) {
     timePred = "http://www.w3.org/ns/prov#endedAtTime";
   } else {
     timePred = "http://www.w3.org/ns/prov#startedAtTime";
@@ -87,13 +87,14 @@ async function updateJobStatus(
   ${prefixHeaderLines.cogs}
   ${prefixHeaderLines.ext}
   ${prefixHeaderLines.schema}
+  ${prefixHeaderLines.adms}
 
   DELETE {
-      ${escapedUri} ext:status ?status ;
+      ${escapedUri} adms:status ?status ;
           ${sparqlEscapeUri(timePred)} ?time .
   }
   INSERT {
-      ${escapedUri} ext:status ${sparqlEscapeUri(status)} ;
+      ${escapedUri} adms:status ${sparqlEscapeUri(status)} ;
           ${
             errorMessage
               ? `schema:error ${sparqlEscapeString(errorMessage)} ;`
@@ -103,7 +104,7 @@ async function updateJobStatus(
   }
   WHERE {
       ${escapedUri} a ${sparqlEscapeUri(RDF_JOB_TYPE)} .
-      OPTIONAL { ${escapedUri} ext:status ?status }
+      OPTIONAL { ${escapedUri} adms:status ?status }
       OPTIONAL { ${escapedUri} ${sparqlEscapeUri(timePred)} ?time }
   }`;
   await update(queryString);
@@ -111,16 +112,17 @@ async function updateJobStatus(
 
 async function latestJobFinishedAt(): Promise<Date | null> {
   const { KANSELARIJ } = CONSTANTS.GRAPHS;
-  const { SUCCESS } = CONSTANTS.JOB.STATUS;
+  const { SUCCESS } = CONSTANTS.JOB.STATUSES;
   const queryString = `
     ${prefixHeaderLines.ext}
     ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.adms}
     SELECT ?job ?time
     WHERE {
       GRAPH ${sparqlEscapeUri(KANSELARIJ)} {
         ?job
           a ${sparqlEscapeUri(RDF_JOB_TYPE)} ;
-          ext:status ${sparqlEscapeUri(SUCCESS)} ;
+          adms:status ${sparqlEscapeUri(SUCCESS)} ;
           prov:endedAtTime ?time .
       }
     } ORDER BY DESC(?time) LIMIT 1

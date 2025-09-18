@@ -82,7 +82,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
   const authorized = await jobExists(job.uri);
   if (!authorized) {
     return res.status(403).send(JSON.stringify({
-      error: "You don't have the required access rights to change change document names",
+      error: "You don't have the required access rights to change document names",
     }));
   }
 
@@ -127,11 +127,11 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
         agendaitem.agendaActivityNumber
       );
     }
-    const { SUCCESS } = CONSTANTS.JOB.STATUS;
+    const { SUCCESS } = CONSTANTS.JOB.STATUSES;
     await updateJobStatus(job.uri, SUCCESS);
   } catch (e) {
-    const { FAIL } = CONSTANTS.JOB.STATUS;
-    await updateJobStatus(job.uri, FAIL, getErrorMessage(e));
+    const { FAILED } = CONSTANTS.JOB.STATUSES;
+    await updateJobStatus(job.uri, FAILED, getErrorMessage(e));
   }
   return;
 });
