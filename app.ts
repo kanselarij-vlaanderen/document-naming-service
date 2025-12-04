@@ -5,6 +5,8 @@ import {
   getSortedAgendaitems,
   getAgenda,
   updatePieceName,
+  updateSignedPieceNames,
+  updateFlattenedPieceNames,
   updateAgendaActivityNumber,
 } from "./lib/queries";
 import CONSTANTS from "./constants";
@@ -121,6 +123,8 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
         const newName = mappingMap.get(piece.uri) ?? piece.title;
         await updatePieceName(piece.uri, newName);
         await addPieceOriginalName(piece.uri, piece.title);
+        await updateSignedPieceNames(piece.uri, newName);
+        await updateFlattenedPieceNames(piece.uri, newName);
       }
       await updateAgendaActivityNumber(
         agendaitem.uri,
