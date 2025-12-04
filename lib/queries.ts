@@ -12,7 +12,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Agenda, Agendaitem, Piece } from "../types/types";
+import { Agenda, Agendaitem } from "../types/types";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
   const queryString = `
@@ -75,60 +75,6 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
       agendaActivityNumber: { kind: "literal" },
     },
   }) as Agendaitem[];
-}
-
-async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
-  const queryString = `
-    ${prefixHeaderLines.besluit}
-    ${prefixHeaderLines.besluitvorming}
-    ${prefixHeaderLines.dct}
-    ${prefixHeaderLines.mu}
-    SELECT ?uri ?title
-    WHERE {
-      ?agenda
-        mu:uuid ${sparqlEscapeString(agendaId)} ;
-        dct:hasPart ?agendaitem .
-      ?agendaitem
-        a besluit:Agendapunt ;
-        besluitvorming:geagendeerdStuk ?uri .
-
-      ?uri dct:title ?title .
-    }
-  `;
-
-  const results = await query(queryString);
-  const parsed = parseSparqlResponse(results);
-
-  return parsed as Piece[];
-}
-
-// unused function
-async function getSubcasePieces(subcase: string) {
-  const queryString = `
-${prefixHeaderLines.prov}
-${prefixHeaderLines.ext}
-${prefixHeaderLines.pav}
-${prefixHeaderLines.dct}
-${prefixHeaderLines.dossier}
-
-SELECT DISTINCT ?piece ?pieceName ?pieceType
-FROM ${sparqlEscapeUri(CONSTANTS.GRAPHS.PUBLIC)}
-FROM ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)}
-WHERE {
-  ?submissionActivity ext:indieningVindtPlaatsTijdens ${sparqlEscapeUri(
-    subcase
-  )} ;
-                      prov:generated ?piece .
-  FILTER NOT EXISTS { [] pav:previousVersion ?piece }
-  ?piece dct:title ?pieceName .
-  OPTIONAL { ?documentContainer dossier:Collectie.bestaatUit ?piece ; dct:type ?pieceType . }
-}
-ORDER BY ?pieceName`;
-
-  const response = await query(queryString);
-  const results = parseSparqlResponse(response);
-
-  return results;
 }
 
 async function getLastAgendaActivityNumber(
@@ -291,7 +237,6 @@ async function updatePieceName(
   await update(queryString);
 }
 
-// TODO which graphs are needed here?
 async function updateAgendaActivityNumber(
   agendaitemUri: string,
   agendaActivityNumber: number
@@ -323,7 +268,6 @@ async function updateAgendaActivityNumber(
 
 export {
   getSortedAgendaitems,
-  getPiecesForAgenda,
   getLastAgendaActivityNumber,
   getAgenda,
   updatePieceName,
