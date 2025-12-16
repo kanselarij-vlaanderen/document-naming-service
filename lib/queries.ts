@@ -12,7 +12,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Agenda, Agendaitem, Piece } from "../types/types";
+import { Agenda, Agendaitem, Piece, Meeting } from "../types/types";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
   const queryString = `
@@ -391,6 +391,65 @@ async function updateAgendaActivityNumber(
   await update(queryString);
 }
 
+async function getMeeting(meetingId: string): Promise<Meeting | null> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT ?meeting ?plannedStart ?meetingType
+    WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ?meeting a besluit:Vergaderactiviteit ;
+          mu:uuid ${sparqlEscapeString(meetingId)} ;
+          besluit:geplandeStart ?plannedStart ;
+          dct:type ?meetingType .
+      }
+    } LIMIT 1
+  `;
+
+  const response = await query(queryString);
+  const parsed = parseSparqlResponse(response);
+  const head = parsed[0];
+
+  if (!head) return null;
+
+  return {
+    uri: head["meeting"],
+    type: head["meetingType"],
+    plannedStart: head["plannedStart"],
+  } as Meeting;
+}
+
+async function getPiecesForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem
+        a besluit:Agendapunt ;
+        besluitvorming:geagendeerdStuk ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
+}
+
 export {
   getSortedAgendaitems,
   getPiecesForAgenda,
@@ -400,4 +459,6 @@ export {
   updateSignedPieceNames,
   updateFlattenedPieceNames,
   updateAgendaActivityNumber,
+  getMeeting,
+  getPiecesForMeetingStartingWith,
 };

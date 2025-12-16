@@ -8,6 +8,7 @@ import {
   updateSignedPieceNames,
   updateFlattenedPieceNames,
   updateAgendaActivityNumber,
+  getMeeting,
 } from "./lib/queries";
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
@@ -17,11 +18,13 @@ import {
   jobExists,
   latestJobFinishedAt,
   updateJobStatus,
+  addUsedPiecesToJob,
 } from "./lib/jobs";
 import { getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
 import { addPieceOriginalName } from "./lib/add-piece-original-name";
 import { getRatification } from './lib/get-ratification';
+import { processDateChange } from './lib/change-date';
 
 type FileMapping = {
   uri: string;
@@ -140,6 +143,7 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
   return;
 });
 
+// TODO move to a lib file for clarity
 function ensureAgendaActivityNumber(
   agendaitem: Agendaitem,
   agenda: Agenda,
@@ -151,8 +155,104 @@ function ensureAgendaActivityNumber(
   }
 }
 
+app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res: Response) {
+  const meetingId = req.params["meeting_id"];
+  if (!meetingId) {
+    return res.status(404).send(JSON.stringify({
+      error: `No meeting id supplied`
+    }));
+  }
+
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) {
+    return res
+      .status(404)
+      .send(JSON.stringify({
+        error: `Meeting with id ${meetingId} could not be found.`
+      }));
+  }
+  let date_from;
+  let date_to;
+
+  if (!req.body.from || !req.body.to) {
+    return res.status(400).send(JSON.stringify({
+      error: `Both 'from' and 'to' dates have to be supplied.`
+    }));
+  } else {
+    // TODO TRY CATCH ?
+    date_from = new Date(Date.parse(req.body.from));
+    date_to = new Date(Date.parse(req.body.to));
+  }
+
+  // TODO
+  // VR number calculation, we need to use the old name, extract the VR number EXACTLY, replace the VR number. so GOOD regex
+  // ignore approval agendaitems? they shouldn't match anyway
+  
+
+  // query to DELETE INSERT old and new names on piece / file
+  // query to DELETE INSERT old and new names on signed / flattened
+
+  // scheduled? no, run instantly, need user session (or else sudo)
+  // verify? what if it's wrong? how to verify? count old and new? query with old VR should count 0 after done?
+  // per document? per agendaitem? batched probably for large agendaitems with many docs.
+  // per document is quite slow? agenda could have 400+ documents
+  // per agendaitem with batched docs?
+
+  // problems with this? what if someones edits ANYTHING in between? what else has VR numbers.
+  // decisions (should be covered in frontend)
+  // only rename the exact VR number, don't rename postponed or older VR numbers (must be done manually if needed)
+  // weird that documents were already released on agenda A and then renamed? should there be agenda status restrictions?
+  // WHAT if agenda changed type to PVV? really unrealistic isn't it? EP or BM maybe, but PVV is a huge stretch
+
+  // outside of try catch, could fail ofc
+  // we don't know what pieces are going to change yet, we will add them later.
+  const job = await createNamingJob(
+    meeting.uri, // TODO this is different than agenda. what is in the model?. do we we want a second type of naming job?
+    null,
+  );
+
+  try {
+    // TODO better? check if logged in? what if logged out after?
+    const authorized = await jobExists(job.uri);
+    if (!authorized) {
+      return res.status(403).send(JSON.stringify({
+        error: "You don't have the required access rights to change change document names",
+      }));
+    }
+
+    const payload = {
+      data: {
+        type: CONSTANTS.JOB.JSONAPI_JOB_TYPE,
+        id: job.id,
+        attributes: {
+          uri: job.uri,
+          status: job.status,
+          created: job.created,
+        },
+      },
+    };
+
+    res.send(payload);
+
+    // start the process
+    const piecesUsed = await processDateChange(meeting, date_from, date_to);
+    // TODO if errors are thrown, we skip this step. do we want to return piece[] + optional error message?
+    if (piecesUsed) {
+      await addUsedPiecesToJob(job, piecesUsed);
+    }
+    const { SUCCESS } = CONSTANTS.JOB.STATUS;
+    await updateJobStatus(job.uri, SUCCESS);
+  } catch (e) {
+    const { FAIL } = CONSTANTS.JOB.STATUS;
+    await updateJobStatus(job.uri, FAIL, getErrorMessage(e));
+  }
+  return;
+
+});
+
 app.use(errorHandler);
 
+// TODO move all the below to a lib file for clarity
 type AgendaActivityCounterDict = {
   regular: {
     doc: number;
