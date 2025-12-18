@@ -450,6 +450,37 @@ async function getPiecesForMeetingStartingWith(meetingURI: string, startsWith: s
   return parsed as Piece[];
 }
 
+async function getRatificationsForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    ${prefixHeaderLines.ext}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem a besluit:Agendapunt .
+      ?subcase 
+        ^besluitvorming:vindtPlaatsTijdens/besluitvorming:genereertAgendapunt ?agendaitem ; 
+        ext:heeftBekrachtiging ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
+}
+
 export {
   getSortedAgendaitems,
   getPiecesForAgenda,
@@ -461,4 +492,5 @@ export {
   updateAgendaActivityNumber,
   getMeeting,
   getPiecesForMeetingStartingWith,
+  getRatificationsForMeetingStartingWith,
 };

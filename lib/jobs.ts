@@ -8,7 +8,6 @@ import {
 } from "mu";
 import CONSTANTS from "../constants";
 import { parseSparqlResponse, prefixHeaderLines } from "./sparql-utils";
-import { Piece } from "../types/types";
 
 type DocumentNamingJob = {
   uri: string;
@@ -35,7 +34,7 @@ async function jobExists(uri: string): Promise<boolean> {
 
 async function createNamingJob(
   agendaUri: string,
-  pieces: string[] | null
+  piecesUris: string[] | null
 ): Promise<DocumentNamingJob> {
   const RESOURCE_BASE = CONSTANTS.JOB.RDF_RESOURCE_BASE;
   const JSONAPI_JOB_TYPE = CONSTANTS.JOB.JSONAPI_JOB_TYPE;
@@ -61,11 +60,11 @@ async function createNamingJob(
           mu:uuid ${sparqlEscapeString(job.id)} ;
           ext:status ${sparqlEscapeString(job.status)} ;
           prov:used ${sparqlEscapeUri(agendaUri)} ;
-          ${pieces ? pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`).join('        \n'): ''}
           prov:startedAtTime ${sparqlEscapeDateTime(job.created)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
   await update(queryString);
+  await addUsedPiecesToJobBatched(job, piecesUris);
   return job;
 }
 
@@ -135,22 +134,22 @@ async function latestJobFinishedAt(): Promise<Date | null> {
   return time as Date;
 }
 
-async function addUsedPiecesToJob(
+async function addUsedPiecesToJobBatched(
   job: DocumentNamingJob,
-  pieces: Piece[] | null
+  piecesUris: string[] | null
 ): Promise<DocumentNamingJob> {
   const PIECE_QUERY_BATCH_SIZE = 20;
-  if (pieces?.length) {
-    const nrOfBatches = Math.ceil(pieces.length / PIECE_QUERY_BATCH_SIZE);
+  if (piecesUris?.length) {
+    const nrOfBatches = Math.ceil(piecesUris.length / PIECE_QUERY_BATCH_SIZE);
     for (let currentBatch = 0; currentBatch < nrOfBatches; currentBatch++) {
       const startIndex = currentBatch * PIECE_QUERY_BATCH_SIZE;
       const endIndex = startIndex + PIECE_QUERY_BATCH_SIZE;
-      const currentPieces = pieces.slice(startIndex, endIndex);
+      const currentPieces = piecesUris.slice(startIndex, endIndex);
       const batchedQuery = `
       ${prefixHeaderLines.prov}
       
       INSERT DATA {
-        ${sparqlEscapeUri(job.uri)} prov:used ${currentPieces.map((piece) => sparqlEscapeUri(piece.uri)).join(', ')} .
+        ${sparqlEscapeUri(job.uri)} prov:used ${currentPieces.map((piece) => sparqlEscapeUri(piece)).join(', ')} .
       }
       `;
       await update(batchedQuery);
@@ -165,5 +164,5 @@ export {
   createNamingJob,
   updateJobStatus,
   latestJobFinishedAt,
-  addUsedPiecesToJob,
+  addUsedPiecesToJobBatched,
 };
