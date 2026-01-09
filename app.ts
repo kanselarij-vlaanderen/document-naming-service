@@ -185,7 +185,6 @@ app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res:
     const date_to = new Date(Date.parse(req.body.to));
 
     // gather all pieces on agendaitems on entire meeting + ratifications
-    debugger
     const formattedDateFrom = `VR ${format(date_from, 'yyyy ddMM')}`;
     const piecesResults = await getPiecesForMeetingStartingWith(meeting.uri, formattedDateFrom);
     const ratifications = await getRatificationsForMeetingStartingWith(meeting.uri, formattedDateFrom);
