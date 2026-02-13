@@ -291,6 +291,76 @@ async function updatePieceName(
   await update(queryString);
 }
 
+async function updateSignedPieceNames(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
+  const queryString = `
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedFile nfo:fileName ?signedFileName .
+    }
+    INSERT {
+      ?signedPiece dct:title ?newsignedPieceTitle .
+      ?signedFile nfo:fileName ?newsignedFileName .
+    }
+    WHERE {
+      ?signedPiece sign:ongetekendStuk ${escapedPiece} .         
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedPiece prov:value ?signedFile .
+      ?signedFile
+        nfo:fileName ?signedFileName ;
+        dbpedia:fileExtension ?signedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (met certificaat)") as ?newsignedPieceTitle)
+      BIND (CONCAT(?newsignedPieceTitle, ".", ?signedFileExtension) as ?newsignedFileName)
+    }
+  `;
+
+  await update(queryString);
+}
+
+async function updateFlattenedPieceNames(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
+  const queryString = `
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?flattenedFileName .
+    }
+    INSERT {
+      ?flattenedPiece dct:title ?newFlattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?newFlattenedFileName .
+    }
+    WHERE {
+      ${escapedPiece} sign:getekendStukKopie ?flattenedPiece .
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedPiece prov:value ?flattenedFile .
+      ?flattenedFile
+        nfo:fileName ?flattenedFileName ;
+        dbpedia:fileExtension ?flattenedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (ondertekend)") as ?newFlattenedPieceTitle)
+      BIND (CONCAT(?newFlattenedPieceTitle, ".", ?flattenedFileExtension) as ?newFlattenedFileName)
+    }
+  `;
+
+  await update(queryString);
+}
+
 // TODO which graphs are needed here?
 async function updateAgendaActivityNumber(
   agendaitemUri: string,
@@ -327,5 +397,7 @@ export {
   getLastAgendaActivityNumber,
   getAgenda,
   updatePieceName,
+  updateSignedPieceNames,
+  updateFlattenedPieceNames,
   updateAgendaActivityNumber,
 };
