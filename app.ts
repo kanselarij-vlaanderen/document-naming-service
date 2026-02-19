@@ -304,7 +304,7 @@ async function getNamedPieces(req: Request, res: Response) {
         if (ratification) {
           const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
           const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
-          ratification.position = maxPosition + 1;
+          ratification.position = allPieces.length ? maxPosition + 1 : 1;
           piecesResults.push(ratification);
         }
       }
