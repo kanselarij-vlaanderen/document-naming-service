@@ -12,6 +12,7 @@ async function replacePieceVRNameDate(pieces: Piece[], date_to: Date): Promise<v
     const newPieceName = pieceName.vrDateReplaced(date_to);
     console.log('going to change name from: ', pieceName.name, ' to: ', newPieceName);
     if (newPieceName !== pieceName.name) {
+      // any draft pieces are not updated but could have the old VR number
       await updatePieceName(piece.uri, newPieceName);
       await updateSignedPieceNames(piece.uri, newPieceName);
       await updateFlattenedPieceNames(piece.uri, newPieceName);

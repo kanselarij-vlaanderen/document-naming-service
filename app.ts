@@ -227,7 +227,7 @@ app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res:
     } else {
       return res.status(500).send(
       JSON.stringify({
-        error: `Failed to create a document-naming-job. Detail: ${getErrorMessage(e)}`,
+        error: `Failed to replace the VR numbers on all meeting documents. Detail: ${getErrorMessage(e)}`,
       })
     );
     }
@@ -320,7 +320,7 @@ async function getNamedPieces(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).send(
       JSON.stringify({
-        error: `document-naming service ran into an error: ${error?.message}`,
+        error: `document-naming service encountered an error: ${error?.message}`,
       })
     );
   }
