@@ -1,6 +1,6 @@
 {
   "name": "document-naming-service",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Microservice to generate document names",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
