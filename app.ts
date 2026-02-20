@@ -6,9 +6,9 @@ import {
   getSortedAgendaitems,
   getAgenda,
   updatePieceName,
+  updateAgendaActivityNumberOnSubcase,
   updateSignedPieceNames,
   updateFlattenedPieceNames,
-  updateAgendaActivityNumber,
   getMeeting,
   getPiecesForMeetingStartingWith,
   getRatificationsForMeetingStartingWith,
@@ -26,6 +26,10 @@ import { getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
 import { addPieceOriginalName } from "./lib/add-piece-original-name";
 import { getRatification } from './lib/get-ratification';
+import {
+  sparqlEscapeUri,
+  sparqlEscapeInt,
+} from "mu";
 import { replacePieceVRNameDate } from './lib/change-date';
 
 type FileMapping = {
@@ -111,30 +115,80 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
   try {
     const agendaitems = await getSortedAgendaitems(agendaId);
     const counters = await initCounters(agenda);
+    
+    try {
+      // calculate all agendaActivityNumbers first
+      for (const agendaitem of agendaitems) {
+        ensureAgendaActivityNumber(agendaitem, agenda, counters);
+      }
+      // set the agendaActivityNumbers
+      for (const agendaitem of agendaitems) {
+        if (agendaitem.agendaActivityNumber === undefined) {
+          throw new Error("No agendaActivityNumber (should never happen)");
+        }
+        await updateAgendaActivityNumberOnSubcase(
+          agendaitem.subcaseUri,
+          agendaitem.agendaActivityNumber
+        );
+      }
+    } catch (error: any) {
+      // if we reach this something went wrong with assigning the agendaActivityNumbers to the subcases.
+      // in this case we should stop or risk having incorrect numbering
+      // in the case where database/triplestore is having issues, but the numbering was correct we could execute this query
+      const queryString = `
+        PREFIX adms: <http://www.w3.org/ns/adms#>
+        PREFIX dossier: <https://data.vlaanderen.be/ns/dossier#>
+        INSERT {
+          ?subcase adms:identifier ?identifier .
+        }
+        WHERE {
+          VALUES (?subcase ?identifier) {
+            ${agendaitems
+              .map(
+                ({subcaseUri, agendaActivityNumber }) =>
+                  `(${sparqlEscapeUri(subcaseUri)} ${agendaActivityNumber ? sparqlEscapeInt(agendaActivityNumber) : ''})`
+              )
+              .join("\n      ")}
+          }
+          ?subcase a dossier:Procedurestap .
+          FILTER NOT EXISTS { ?subcase adms:identifier [] } .
+        }
+      `
+      console.log('failed to persist agendaActivityNumbers, optional query to execute manually to set those numbers: ', queryString);
+      const errorMessage = `Critical: Failed to assign numbers to subcases. Reason: ${error.message}`;
+      throw new Error(errorMessage);
+    }
 
+    const failedAgendaitems: Agendaitem[] = [];
+    // number the documents
     for (const agendaitem of agendaitems) {
-      const piecesResults = await getAgendaitemPieces(agendaitem.uri);
-      const ratification = await getRatification(agendaitem.uri);
-      if (ratification) {
-        const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
-        const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
-        ratification.position = maxPosition + 1;
-        piecesResults.push(ratification);
+      try {
+        const piecesResults = await getAgendaitemPieces(agendaitem.uri);
+        const ratification = await getRatification(agendaitem.uri);
+        if (ratification) {
+          const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
+          const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
+          ratification.position = maxPosition + 1;
+          piecesResults.push(ratification);
+        }
+        for (const piece of piecesResults) {
+          const newName = mappingMap.get(piece.uri) ?? piece.title;
+          await updatePieceName(piece.uri, newName);
+          await addPieceOriginalName(piece.uri, piece.title);
+          await updateSignedPieceNames(piece.uri, newName);
+          await updateFlattenedPieceNames(piece.uri, newName);
+        }
+      } catch (error) {
+        // If this fails, we can still continue with the other agendaitem documents
+        failedAgendaitems.push(agendaitem);
       }
-      ensureAgendaActivityNumber(agendaitem, agenda, counters);
-      if (agendaitem.agendaActivityNumber === undefined)
-        throw new Error("No agendaActivityNumber (should never happen)");
-      for (const piece of piecesResults) {
-        const newName = mappingMap.get(piece.uri) ?? piece.title;
-        await updatePieceName(piece.uri, newName);
-        await addPieceOriginalName(piece.uri, piece.title);
-        await updateSignedPieceNames(piece.uri, newName);
-        await updateFlattenedPieceNames(piece.uri, newName);
-      }
-      await updateAgendaActivityNumber(
-        agendaitem.uri,
-        agendaitem.agendaActivityNumber
-      );
+    }
+
+    if (failedAgendaitems.length) {
+      console.log(`agendaitems where document numbering failed: ${failedAgendaitems?.map(agendaitem => agendaitem.uri).join('\n')}`);
+      const { FAIL } = CONSTANTS.JOB.STATUS;
+      await updateJobStatus(job.uri, FAIL, 'De documenten van 1 of meerdere agendapunten konden niet worden genummerd');
+      return;
     }
     const { SUCCESS } = CONSTANTS.JOB.STATUS;
     await updateJobStatus(job.uri, SUCCESS);
@@ -164,18 +218,18 @@ app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res:
     }));
   }
 
-  const meeting = await getMeeting(meetingId);
-  if (!meeting) {
-    return res
-      .status(404)
-      .send(JSON.stringify({
-        error: `Meeting with id ${meetingId} could not be found.`
-      }));
-  }
-
   let job;
-
+  
   try {
+    const meeting = await getMeeting(meetingId);
+    if (!meeting) {
+      return res
+        .status(404)
+        .send(JSON.stringify({
+          error: `Meeting with id ${meetingId} could not be found.`
+        }));
+    }
+
     if (!req.body.from || !req.body.to) {
       return res.status(400).send(JSON.stringify({
         error: `Both 'from' and 'to' dates have to be supplied.`
