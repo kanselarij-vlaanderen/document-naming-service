@@ -1,11 +1,17 @@
 import { app, errorHandler } from "mu";
 import { Request, Response } from "express";
+import { format } from 'date-fns';
 import {
   getLastAgendaActivityNumber,
   getSortedAgendaitems,
   getAgenda,
   updatePieceName,
   updateAgendaActivityNumberOnSubcase,
+  updateSignedPieceNames,
+  updateFlattenedPieceNames,
+  getMeeting,
+  getPiecesForMeetingStartingWith,
+  getRatificationsForMeetingStartingWith,
 } from "./lib/queries";
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
@@ -18,11 +24,13 @@ import {
 } from "./lib/jobs";
 import { getErrorMessage } from "./lib/utils";
 import bodyParser from "body-parser";
+import { addPieceOriginalName } from "./lib/add-piece-original-name";
 import { getRatification } from './lib/get-ratification';
 import {
   sparqlEscapeUri,
   sparqlEscapeInt,
 } from "mu";
+import { replacePieceVRNameDate } from './lib/change-date';
 
 type FileMapping = {
   uri: string;
@@ -166,6 +174,9 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
         for (const piece of piecesResults) {
           const newName = mappingMap.get(piece.uri) ?? piece.title;
           await updatePieceName(piece.uri, newName);
+          await addPieceOriginalName(piece.uri, piece.title);
+          await updateSignedPieceNames(piece.uri, newName);
+          await updateFlattenedPieceNames(piece.uri, newName);
         }
       } catch (error) {
         // If this fails, we can still continue with the other agendaitem documents
@@ -198,6 +209,86 @@ function ensureAgendaActivityNumber(
     agendaitem.agendaActivityNumber = readCounter(agenda, agendaitem, counters);
   }
 }
+
+app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res: Response) {
+  const meetingId = req.params["meeting_id"];
+  if (!meetingId) {
+    return res.status(404).send(JSON.stringify({
+      error: `No meeting id supplied`
+    }));
+  }
+
+  let job;
+  
+  try {
+    const meeting = await getMeeting(meetingId);
+    if (!meeting) {
+      return res
+        .status(404)
+        .send(JSON.stringify({
+          error: `Meeting with id ${meetingId} could not be found.`
+        }));
+    }
+
+    if (!req.body.from || !req.body.to) {
+      return res.status(400).send(JSON.stringify({
+        error: `Both 'from' and 'to' dates have to be supplied.`
+      }));
+    }
+    const date_from = new Date(Date.parse(req.body.from));
+    const date_to = new Date(Date.parse(req.body.to));
+
+    // gather all pieces on agendaitems on entire meeting + ratifications
+    const formattedDateFrom = `VR ${format(date_from, 'yyyy ddMM')}`;
+    const piecesResults = await getPiecesForMeetingStartingWith(meeting.uri, formattedDateFrom);
+    const ratifications = await getRatificationsForMeetingStartingWith(meeting.uri, formattedDateFrom);
+    const allPieces = [...piecesResults, ...ratifications];
+
+    job = await createNamingJob(
+      meeting.uri,
+      allPieces.map((piece) => piece.uri),
+    );
+    const authorized = await jobExists(job.uri);
+    if (!authorized) {
+      return res.status(403).send(JSON.stringify({
+        error: "You don't have the required access rights to change change document names",
+      }));
+    }
+
+    const payload = {
+      data: {
+        type: CONSTANTS.JOB.JSONAPI_JOB_TYPE,
+        id: job.id,
+        attributes: {
+          uri: job.uri,
+          status: job.status,
+          created: job.created,
+        },
+      },
+    };
+
+    res.send(payload);
+
+    // start the process
+    await replacePieceVRNameDate(allPieces, date_to);
+
+    const { SUCCESS } = CONSTANTS.JOB.STATUS;
+    await updateJobStatus(job.uri, SUCCESS);
+  } catch (e) {
+    const { FAIL } = CONSTANTS.JOB.STATUS;
+    if (job?.uri) {
+      await updateJobStatus(job.uri, FAIL, getErrorMessage(e));
+    } else {
+      return res.status(500).send(
+      JSON.stringify({
+        error: `Failed to replace the VR numbers on all meeting documents. Detail: ${getErrorMessage(e)}`,
+      })
+    );
+    }
+  }
+  return;
+
+});
 
 app.use(errorHandler);
 
@@ -267,7 +358,7 @@ async function getNamedPieces(req: Request, res: Response) {
         if (ratification) {
           const allPieces = await getAgendaitemPieces(agendaitem.uri, true);
           const maxPosition = Math.max(...allPieces.map((p) => p.position ?? 0));
-          ratification.position = maxPosition + 1;
+          ratification.position = allPieces.length ? maxPosition + 1 : 1;
           piecesResults.push(ratification);
         }
       }
@@ -283,7 +374,7 @@ async function getNamedPieces(req: Request, res: Response) {
   } catch (error: any) {
     return res.status(500).send(
       JSON.stringify({
-        error: `document-naming service ran into an error: ${error?.message}`,
+        error: `document-naming service encountered an error: ${error?.message}`,
       })
     );
   }

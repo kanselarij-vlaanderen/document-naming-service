@@ -12,7 +12,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Agenda, Agendaitem, Piece } from "../types/types";
+import { Agenda, Agendaitem, Piece, Meeting } from "../types/types";
 import { sparqlQueryWithRetry } from "../lib/utils";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
@@ -246,7 +246,7 @@ async function getAgenda(agendaId: string): Promise<Agenda | null> {
 
 async function updatePieceName(
   pieceUri: string,
-  newName: string
+  newName: string,
 ): Promise<void> {
   const escapedPiece = sparqlEscapeUri(pieceUri);
   const queryString = `
@@ -267,7 +267,6 @@ async function updatePieceName(
         ${escapedPiece} dct:title ${sparqlEscapeString(newName)} .
         ?file nfo:fileName ?newFileName .
         ?derived nfo:fileName ?newDerivedFileName .
-        ${escapedPiece} dct:alternative ?title .
       }
     }
     WHERE {
@@ -294,6 +293,77 @@ async function updatePieceName(
   await sparqlQueryWithRetry(update, queryString);
 }
 
+async function updateSignedPieceNames(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
+  const queryString = `
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedFile nfo:fileName ?signedFileName .
+    }
+    INSERT {
+      ?signedPiece dct:title ?newsignedPieceTitle .
+      ?signedFile nfo:fileName ?newsignedFileName .
+    }
+    WHERE {
+      ?signedPiece sign:ongetekendStuk ${escapedPiece} .         
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedPiece prov:value ?signedFile .
+      ?signedFile
+        nfo:fileName ?signedFileName ;
+        dbpedia:fileExtension ?signedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (met certificaat)") as ?newsignedPieceTitle)
+      BIND (CONCAT(?newsignedPieceTitle, ".", ?signedFileExtension) as ?newsignedFileName)
+    }
+  `;
+
+  await update(queryString);
+}
+
+async function updateFlattenedPieceNames(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
+  const queryString = `
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?flattenedFileName .
+    }
+    INSERT {
+      ?flattenedPiece dct:title ?newFlattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?newFlattenedFileName .
+    }
+    WHERE {
+      ${escapedPiece} sign:getekendStukKopie ?flattenedPiece .
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedPiece prov:value ?flattenedFile .
+      ?flattenedFile
+        nfo:fileName ?flattenedFileName ;
+        dbpedia:fileExtension ?flattenedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (ondertekend)") as ?newFlattenedPieceTitle)
+      BIND (CONCAT(?newFlattenedPieceTitle, ".", ?flattenedFileExtension) as ?newFlattenedFileName)
+    }
+  `;
+
+  await update(queryString);
+}
+
+// TODO which graphs are needed here?
 async function updateAgendaActivityNumberOnSubcase(
   subcaseUri: string,
   agendaActivityNumber: number
@@ -312,11 +382,106 @@ async function updateAgendaActivityNumberOnSubcase(
   await sparqlQueryWithRetry(update, queryString);
 }
 
+async function getMeeting(meetingId: string): Promise<Meeting | null> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT ?meeting ?plannedStart ?meetingType
+    WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ?meeting a besluit:Vergaderactiviteit ;
+          mu:uuid ${sparqlEscapeString(meetingId)} ;
+          besluit:geplandeStart ?plannedStart ;
+          dct:type ?meetingType .
+      }
+    } LIMIT 1
+  `;
+
+  const response = await query(queryString);
+  const parsed = parseSparqlResponse(response);
+  const head = parsed[0];
+
+  if (!head) return null;
+
+  return {
+    uri: head["meeting"],
+    type: head["meetingType"],
+    plannedStart: head["plannedStart"],
+  } as Meeting;
+}
+
+async function getPiecesForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem
+        a besluit:Agendapunt ;
+        besluitvorming:geagendeerdStuk ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
+}
+
+async function getRatificationsForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    ${prefixHeaderLines.ext}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem a besluit:Agendapunt .
+      ?subcase 
+        ^besluitvorming:vindtPlaatsTijdens/besluitvorming:genereertAgendapunt ?agendaitem ; 
+        ext:heeftBekrachtiging ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
+}
+
 export {
   getSortedAgendaitems,
   getPiecesForAgenda,
   getLastAgendaActivityNumber,
   getAgenda,
   updatePieceName,
-  updateAgendaActivityNumberOnSubcase
+  updateAgendaActivityNumberOnSubcase,
+  updateSignedPieceNames,
+  updateFlattenedPieceNames,
+  getMeeting,
+  getPiecesForMeetingStartingWith,
+  getRatificationsForMeetingStartingWith,
 };
