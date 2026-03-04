@@ -186,8 +186,8 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 
     if (failedAgendaitems.length) {
       console.log(`agendaitems where document numbering failed: ${failedAgendaitems?.map(agendaitem => agendaitem.uri).join('\n')}`);
-      const { FAIL } = CONSTANTS.JOB.STATUS;
-      await updateJobStatus(job.uri, FAIL, 'De documenten van 1 of meerdere agendapunten konden niet worden genummerd');
+      const { FAILED } = CONSTANTS.JOB.STATUSES;
+      await updateJobStatus(job.uri, FAILED, 'De documenten van 1 of meerdere agendapunten konden niet worden genummerd');
       return;
     }
     const { SUCCESS } = CONSTANTS.JOB.STATUSES;
@@ -272,12 +272,12 @@ app.post("/meeting/:meeting_id/change-dates", async function (req: Request, res:
     // start the process
     await replacePieceVRNameDate(allPieces, date_to);
 
-    const { SUCCESS } = CONSTANTS.JOB.STATUS;
+    const { SUCCESS } = CONSTANTS.JOB.STATUSES;
     await updateJobStatus(job.uri, SUCCESS);
   } catch (e) {
-    const { FAIL } = CONSTANTS.JOB.STATUS;
+    const { FAILED } = CONSTANTS.JOB.STATUSES;
     if (job?.uri) {
-      await updateJobStatus(job.uri, FAIL, getErrorMessage(e));
+      await updateJobStatus(job.uri, FAILED, getErrorMessage(e));
     } else {
       return res.status(500).send(
       JSON.stringify({
