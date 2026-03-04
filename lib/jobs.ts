@@ -34,7 +34,7 @@ async function jobExists(uri: string): Promise<boolean> {
 
 async function createNamingJob(
   agendaUri: string,
-  pieces: string[]
+  piecesUris: string[] | null
 ): Promise<DocumentNamingJob> {
   const RESOURCE_BASE = CONSTANTS.JOB.RDF_RESOURCE_BASE;
   const JSONAPI_JOB_TYPE = CONSTANTS.JOB.JSONAPI_JOB_TYPE;
@@ -61,11 +61,11 @@ async function createNamingJob(
           mu:uuid ${sparqlEscapeString(job.id)} ;
           adms:status ${sparqlEscapeString(job.status)} ;
           dct:source ${sparqlEscapeUri(agendaUri)} ;
-          ${pieces.map((piece) => `prov:used ${sparqlEscapeUri(piece)} ;`).join('        \n')}
           prov:startedAtTime ${sparqlEscapeDateTime(job.created)} ;
           dct:created ${sparqlEscapeDateTime(job.created)} .
   }`;
   await update(queryString);
+  await addUsedPiecesToJobBatched(job, piecesUris);
   return job;
 }
 
@@ -137,10 +137,35 @@ async function latestJobFinishedAt(): Promise<Date | null> {
   return time as Date;
 }
 
+async function addUsedPiecesToJobBatched(
+  job: DocumentNamingJob,
+  piecesUris: string[] | null
+): Promise<DocumentNamingJob> {
+  const PIECE_QUERY_BATCH_SIZE = 20;
+  if (piecesUris?.length) {
+    const nrOfBatches = Math.ceil(piecesUris.length / PIECE_QUERY_BATCH_SIZE);
+    for (let currentBatch = 0; currentBatch < nrOfBatches; currentBatch++) {
+      const startIndex = currentBatch * PIECE_QUERY_BATCH_SIZE;
+      const endIndex = startIndex + PIECE_QUERY_BATCH_SIZE;
+      const currentPieces = piecesUris.slice(startIndex, endIndex);
+      const batchedQuery = `
+      ${prefixHeaderLines.prov}
+      
+      INSERT DATA {
+        ${sparqlEscapeUri(job.uri)} prov:used ${currentPieces.map((piece) => sparqlEscapeUri(piece)).join(', ')} .
+      }
+      `;
+      await update(batchedQuery);
+    }
+  }
+  return job;
+}
+
 export {
   DocumentNamingJob,
   jobExists,
   createNamingJob,
   updateJobStatus,
   latestJobFinishedAt,
+  addUsedPiecesToJobBatched,
 };

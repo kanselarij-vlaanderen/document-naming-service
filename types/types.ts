@@ -13,6 +13,7 @@ type Meeting = {
 type Agendaitem = {
   id: string;
   uri: string;
+  subcaseUri: string;
   subcaseType: string;
   type: string;
   agendaActivityNumber?: number;

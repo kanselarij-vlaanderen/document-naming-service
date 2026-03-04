@@ -12,7 +12,8 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Agenda, Agendaitem, Piece } from "../types/types";
+import { Agenda, Agendaitem, Piece, Meeting } from "../types/types";
+import { sparqlQueryWithRetry } from "../lib/utils";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
   const queryString = `
@@ -24,7 +25,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     ${prefixHeaderLines.schema}
     ${prefixHeaderLines.prov}
 
-    SELECT DISTINCT ?agendaitem ?agendaitemId ?subcaseType
+    SELECT DISTINCT ?agendaitem ?agendaitemId ?subcase ?subcaseType
       ?agendaitemType ?isPostponed ?agendaActivityNumber ?position WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
           VALUES ?agendaId { ${sparqlEscapeString(agendaId)} }
@@ -58,7 +59,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     } ORDER BY ?position
   `;
 
-  const response = await query(queryString);
+  const response = await sparqlQueryWithRetry(query, queryString);
 
   // Workaround for Virtuoso bug
   booleanize(response, ["isPostponed"]);
@@ -68,6 +69,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
     destIdProp: "uri",
     kind: "resource",
     propShapers: {
+      subcaseUri: { kind: "literal", sourceProp: "subcase" },
       subcaseType: { kind: "literal" },
       type: { kind: "literal", sourceProp: "agendaitemType" },
       id: { kind: "literal", sourceProp: "agendaitemId" },
@@ -96,7 +98,7 @@ async function getPiecesForAgenda(agendaId: string): Promise<Piece[]> {
     }
   `;
 
-  const results = await query(queryString);
+  const results = await sparqlQueryWithRetry(query, queryString);
   const parsed = parseSparqlResponse(results);
 
   return parsed as Piece[];
@@ -195,7 +197,7 @@ async function getLastAgendaActivityNumber(
     }
   `;
 
-  const response = await query(queryString);
+  const response = await sparqlQueryWithRetry(query, queryString);
   const parsed = parseSparqlResponse(response);
   const maxNumber = parsed[0]?.["maxNumber"];
 
@@ -226,7 +228,7 @@ async function getAgenda(agendaId: string): Promise<Agenda | null> {
     } LIMIT 1
   `;
 
-  const response = await query(queryString);
+  const response = await sparqlQueryWithRetry(query, queryString);
   const parsed = parseSparqlResponse(response);
   const head = parsed[0];
 
@@ -244,7 +246,7 @@ async function getAgenda(agendaId: string): Promise<Agenda | null> {
 
 async function updatePieceName(
   pieceUri: string,
-  newName: string
+  newName: string,
 ): Promise<void> {
   const escapedPiece = sparqlEscapeUri(pieceUri);
   const queryString = `
@@ -288,37 +290,186 @@ async function updatePieceName(
     }
   `;
 
-  await update(queryString);
+  await sparqlQueryWithRetry(update, queryString);
 }
 
-// TODO which graphs are needed here?
-async function updateAgendaActivityNumber(
-  agendaitemUri: string,
-  agendaActivityNumber: number
+async function updateSignedPieceNames(
+  pieceUri: string,
+  newName: string
 ): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
   const queryString = `
-    ${prefixHeaderLines.adms}
-    ${prefixHeaderLines.besluitvorming}
-    ${prefixHeaderLines.ext}
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
     ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedFile nfo:fileName ?signedFileName .
+    }
     INSERT {
-      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-        ?subcase adms:identifier ${sparqlEscapeInt(agendaActivityNumber)}
-      }
+      ?signedPiece dct:title ?newsignedPieceTitle .
+      ?signedFile nfo:fileName ?newsignedFileName .
     }
     WHERE {
-      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-        ${sparqlEscapeUri(agendaitemUri)}
-          ^besluitvorming:genereertAgendapunt
-          / prov:wasInformedBy
-          / ext:indieningVindtPlaatsTijdens ?subcase .
-
-        FILTER(NOT EXISTS { ?subcase adms:identifier [] } ) .
-      }
+      ?signedPiece sign:ongetekendStuk ${escapedPiece} .         
+      ?signedPiece dct:title ?signedPieceTitle .
+      ?signedPiece prov:value ?signedFile .
+      ?signedFile
+        nfo:fileName ?signedFileName ;
+        dbpedia:fileExtension ?signedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (met certificaat)") as ?newsignedPieceTitle)
+      BIND (CONCAT(?newsignedPieceTitle, ".", ?signedFileExtension) as ?newsignedFileName)
     }
   `;
 
   await update(queryString);
+}
+
+async function updateFlattenedPieceNames(
+  pieceUri: string,
+  newName: string
+): Promise<void> {
+  const escapedPiece = sparqlEscapeUri(pieceUri);
+  const queryString = `
+    ${prefixHeaderLines.dbpedia}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.nfo}
+    ${prefixHeaderLines.sign}
+
+    DELETE {
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?flattenedFileName .
+    }
+    INSERT {
+      ?flattenedPiece dct:title ?newFlattenedPieceTitle .
+      ?flattenedFile nfo:fileName ?newFlattenedFileName .
+    }
+    WHERE {
+      ${escapedPiece} sign:getekendStukKopie ?flattenedPiece .
+      ?flattenedPiece dct:title ?flattenedPieceTitle .
+      ?flattenedPiece prov:value ?flattenedFile .
+      ?flattenedFile
+        nfo:fileName ?flattenedFileName ;
+        dbpedia:fileExtension ?flattenedFileExtension .
+      BIND (CONCAT(${sparqlEscapeString(newName)}, " (ondertekend)") as ?newFlattenedPieceTitle)
+      BIND (CONCAT(?newFlattenedPieceTitle, ".", ?flattenedFileExtension) as ?newFlattenedFileName)
+    }
+  `;
+
+  await update(queryString);
+}
+
+// TODO which graphs are needed here?
+async function updateAgendaActivityNumberOnSubcase(
+  subcaseUri: string,
+  agendaActivityNumber: number
+): Promise<void> {
+  const queryString = `
+    ${prefixHeaderLines.adms}
+    ${prefixHeaderLines.dossier}
+    INSERT {
+      ${sparqlEscapeUri(subcaseUri)} adms:identifier ${sparqlEscapeInt(agendaActivityNumber)} .
+    }
+    WHERE {
+      ${sparqlEscapeUri(subcaseUri)} a dossier:Procedurestap .
+      FILTER NOT EXISTS { ${sparqlEscapeUri(subcaseUri)} adms:identifier [] } .
+    }
+  `;
+  await sparqlQueryWithRetry(update, queryString);
+}
+
+async function getMeeting(meetingId: string): Promise<Meeting | null> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT ?meeting ?plannedStart ?meetingType
+    WHERE {
+      GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
+        ?meeting a besluit:Vergaderactiviteit ;
+          mu:uuid ${sparqlEscapeString(meetingId)} ;
+          besluit:geplandeStart ?plannedStart ;
+          dct:type ?meetingType .
+      }
+    } LIMIT 1
+  `;
+
+  const response = await query(queryString);
+  const parsed = parseSparqlResponse(response);
+  const head = parsed[0];
+
+  if (!head) return null;
+
+  return {
+    uri: head["meeting"],
+    type: head["meetingType"],
+    plannedStart: head["plannedStart"],
+  } as Meeting;
+}
+
+async function getPiecesForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem
+        a besluit:Agendapunt ;
+        besluitvorming:geagendeerdStuk ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
+}
+
+async function getRatificationsForMeetingStartingWith(meetingURI: string, startsWith: string): Promise<Piece[]> {
+  const queryString = `
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.mu}
+    ${prefixHeaderLines.ext}
+    SELECT DISTINCT (?stuk as ?uri) ?title
+    WHERE {
+      ?agenda
+        besluitvorming:isAgendaVoor ${sparqlEscapeUri(meetingURI)} ;
+        dct:hasPart ?agendaitem .
+      ?agendaitem a besluit:Agendapunt .
+      ?subcase 
+        ^besluitvorming:vindtPlaatsTijdens/besluitvorming:genereertAgendapunt ?agendaitem ; 
+        ext:heeftBekrachtiging ?stuk .
+
+      ?stuk dct:title ?title .
+      # must have originalName
+      FILTER EXISTS { ?stuk dct:alternative ?originalName . }
+
+      FILTER(STRSTARTS( STR(?title), ${sparqlEscapeString(startsWith)} ) )
+    }
+  `;
+
+  const results = await query(queryString);
+  const parsed = parseSparqlResponse(results);
+
+  return parsed as Piece[];
 }
 
 export {
@@ -327,5 +478,10 @@ export {
   getLastAgendaActivityNumber,
   getAgenda,
   updatePieceName,
-  updateAgendaActivityNumber,
+  updateAgendaActivityNumberOnSubcase,
+  updateSignedPieceNames,
+  updateFlattenedPieceNames,
+  getMeeting,
+  getPiecesForMeetingStartingWith,
+  getRatificationsForMeetingStartingWith,
 };
