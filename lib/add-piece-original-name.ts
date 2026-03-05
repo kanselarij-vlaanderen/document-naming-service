@@ -1,12 +1,15 @@
 import { sparqlEscapeUri, sparqlEscapeString } from "mu";
 import { updateSudo } from "@lblod/mu-auth-sudo";
 import CONSTANTS from "../constants";
+import { prefixHeaderLines } from "./sparql-utils";
 
 async function addPieceOriginalName(
   piece: string,
   originalName: string
 ): Promise<void> {
-  const queryString = `PREFIX dct: <http://purl.org/dc/terms/>
+  const queryString = `
+  ${prefixHeaderLines.dct}
+
 INSERT DATA {
   GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
     ${sparqlEscapeUri(piece)} dct:alternative ${sparqlEscapeString(

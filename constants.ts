@@ -29,13 +29,13 @@ export default {
     INGETROKKEN:
       "http://themis.vlaanderen.be/id/concept/beslissing-resultaatcodes/453a36e8-6fbd-45d3-b800-ec96e59f273b",
   },
-  AGENDA_STATUSSES: {
+  AGENDA_STATUSES: {
     APPROVED:
       "http://themis.vlaanderen.be/id/concept/agenda-status/fff6627e-4c96-4be1-b483-8fefcc6523ca",
     DESIGN:
       "http://themis.vlaanderen.be/id/concept/agenda-status/b3d8a99b-0a7e-419e-8474-4b508fa7ab91",
   },
-  FORMALLY_OK_STATUSSES: {
+  FORMALLY_OK_STATUSES: {
     FORMALLY_OK: "http://kanselarij.vo.data.gift/id/concept/goedkeurings-statussen/CC12A7DB-A73A-4589-9D53-F3C2F4A40636",
   },
   LATIN_ADVERBIAL_NUMERALS: [
@@ -56,10 +56,11 @@ export default {
     "qiundecies",
   ],
   JOB: {
-    STATUS: {
-      RUNNING: "http://vocab.deri.ie/cogs#Running",
-      SUCCESS: "http://vocab.deri.ie/cogs#Success",
-      FAIL: "http://vocab.deri.ie/cogs#Fail",
+    STATUSES: {
+      SCHEDULED: "http://redpencil.data.gift/id/concept/JobStatus/scheduled",
+      BUSY: "http://redpencil.data.gift/id/concept/JobStatus/busy",
+      SUCCESS: "http://redpencil.data.gift/id/concept/JobStatus/success",
+      FAILED: "http://redpencil.data.gift/id/concept/JobStatus/failed",
     },
     RDF_TYPE: "http://mu.semte.ch/vocabularies/ext/DocumentNamingJob",
     RDF_RESOURCE_BASE: "http://mu.semte.ch/services/document-naming",

@@ -36,7 +36,7 @@ async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
             ^besluitvorming:genereertAgendapunt
             / prov:wasInformedBy
             / ext:indieningVindtPlaatsTijdens ?subcase ;
-            ext:formeelOK ${sparqlEscapeUri(CONSTANTS.FORMALLY_OK_STATUSSES.FORMALLY_OK)} ;
+            ext:formeelOK ${sparqlEscapeUri(CONSTANTS.FORMALLY_OK_STATUSES.FORMALLY_OK)} ;
             mu:uuid ?agendaitemId ;
             schema:position ?position .
           OPTIONAL { ?subcase dct:type ?subcaseType }
@@ -170,7 +170,7 @@ async function getLastAgendaActivityNumber(
           ?agendaStatusActivity
             prov:used ?agenda ;
             generiek:bewerking ${sparqlEscapeUri(
-              CONSTANTS.AGENDA_STATUSSES.APPROVED
+              CONSTANTS.AGENDA_STATUSES.APPROVED
             )} ;
             prov:startedAtTime ?agendaApprovedDateTime .
           ?agenda
