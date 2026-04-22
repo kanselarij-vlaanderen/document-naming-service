@@ -31,6 +31,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import { replacePieceVRNameDate } from './lib/change-date';
+import { COUNTER_BLACKLIST } from './config';
 
 type FileMapping = {
   uri: string;
@@ -416,7 +417,17 @@ function increaseCounters(
   const { type: agendaitemType, subcaseType } = agendaitem;
   const agendaitemPurpose = getAgendaitemPurpose(agendaitemType, subcaseType);
   const isPvv = agenda.meeting.type === CONSTANTS.MEETING_TYPES.PVV;
-  counters[isPvv ? "pvv" : "regular"][agendaitemPurpose]++;
+  const type = isPvv ? "pvv" : "regular";
+  counters[type][agendaitemPurpose]++;
+
+  // get blacklisted numbers (subcases that are postponed to a new year reuse their number IF there has been a NEW document)
+  const blacklisted = COUNTER_BLACKLIST[type][agendaitemPurpose];
+  
+  // skipping blacklisted numbers
+  while (blacklisted.includes(counters[type][agendaitemPurpose])) {
+    console.log(`**skipping blacklisted number ${counters[type][agendaitemPurpose]} for meeting type ${type} and document ${agendaitemPurpose} **`);
+    counters[type][agendaitemPurpose]++;
+  }
 }
 
 function generateName(
