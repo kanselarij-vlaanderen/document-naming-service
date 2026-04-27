@@ -9,7 +9,7 @@ export default class VRDocumentName {
       casePrefix: '(?<casePrefix>( VV)|())',  // VV = Vlaamse Veerkracht
       docType: '(?<docType>(DOC)|(DEC)|(MED))',
       remainder: '(?<remainder>.*?)',
-      // caseNr: '(?<caseNr>\\d{4})',
+      caseNr: '(?<caseNr>\\d{4})',
       // index: '(?<index>\\d{1,3})',
       // versionSuffix: `(?<versionSuffix>(${Object.values(latinAdverbialNumberals).map((suffix: any) => suffix.toUpperCase())
       //   .join(')|(')}))`.replace('()|', ''), // Hack to get out the value for piece '0'
@@ -23,7 +23,7 @@ export default class VRDocumentName {
 
   static get strictRegex() {
     const regexGroup = VRDocumentName.regexGroups;
-    return new RegExp(`VR ${regexGroup.date}${regexGroup.casePrefix} ${regexGroup.docType}\\.${regexGroup.remainder}$`);
+    return new RegExp(`VR ${regexGroup.date}${regexGroup.casePrefix} ${regexGroup.docType}\\.${regexGroup.caseNr}${regexGroup.remainder}$`);
   }
 
   constructor(name: string) {
@@ -49,6 +49,7 @@ export default class VRDocumentName {
       date,
       casePrefix: match.groups?.['casePrefix'],
       docType: match.groups?.['docType'],
+      caseNr: parseInt(match.groups?.['caseNr'], 10),
       remainder: match.groups?.['remainder'],
     };
     return meta;
@@ -65,6 +66,15 @@ export default class VRDocumentName {
       return `VR ${formattedNewDate}${meta.casePrefix} ${meta.docType}.${meta.remainder}`;
     } catch(error) {
       return this.name;
+    }
+  }
+
+  getCaseNr(): number {
+    try {
+      const meta = this.parseMeta();
+      return meta.caseNr;
+    } catch(error) {
+      return 0;
     }
   }
 }

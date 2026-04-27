@@ -29,9 +29,19 @@ type Piece = {
   revision: number;
 };
 
+type Subcase = {
+  uri: string;
+  type: string;
+  agendaitemType: string;
+  agendaActivityNumber: number;
+  meetingType: string;
+  pieceName: string;
+};
+
 export {
   Agenda,
   Meeting,
   Agendaitem,
-  Piece
+  Piece,
+  Subcase
 }
