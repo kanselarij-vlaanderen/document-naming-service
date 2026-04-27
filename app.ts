@@ -12,6 +12,7 @@ import {
   getMeeting,
   getPiecesForMeetingStartingWith,
   getRatificationsForMeetingStartingWith,
+  getAllPostponedSubcasesForBlacklist,
 } from "./lib/queries";
 import CONSTANTS from "./constants";
 import { Agenda, Agendaitem, Piece } from "./types/types";
@@ -31,6 +32,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import { replacePieceVRNameDate } from './lib/change-date';
+import VRDocumentName from './lib/vr-document-name';
 
 type FileMapping = {
   uri: string;
@@ -115,11 +117,12 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
   try {
     const agendaitems = await getSortedAgendaitems(agendaId);
     const counters = await initCounters(agenda);
+    const countersBlacklist = await initBlacklist(agenda);
     
     try {
       // calculate all agendaActivityNumbers first
       for (const agendaitem of agendaitems) {
-        ensureAgendaActivityNumber(agendaitem, agenda, counters);
+        ensureAgendaActivityNumber(agendaitem, agenda, counters, countersBlacklist);
       }
       // set the agendaActivityNumbers
       for (const agendaitem of agendaitems) {
@@ -202,10 +205,11 @@ app.post("/agenda/:agenda_id", async function (req: Request, res: Response) {
 function ensureAgendaActivityNumber(
   agendaitem: Agendaitem,
   agenda: Agenda,
-  counters: AgendaActivityCounterDict
+  counters: AgendaActivityCounterDict,
+  countersBlacklist: AgendaActivityCounterBlacklistDict
 ): void {
   if (agendaitem.agendaActivityNumber === undefined) {
-    increaseCounters(agenda, agendaitem, counters);
+    increaseCounters(agenda, agendaitem, counters, countersBlacklist);
     agendaitem.agendaActivityNumber = readCounter(agenda, agendaitem, counters);
   }
 }
@@ -348,6 +352,7 @@ async function getNamedPieces(req: Request, res: Response) {
   try {
     const agendaitems = await getSortedAgendaitems(agendaId);
     const counters = await initCounters(agenda);
+    const countersBlacklist = await initBlacklist(agenda);
 
     const mappings: FileMapping[] = [];
 
@@ -362,7 +367,7 @@ async function getNamedPieces(req: Request, res: Response) {
           piecesResults.push(ratification);
         }
       }
-      ensureAgendaActivityNumber(agendaitem, agenda, counters);
+      ensureAgendaActivityNumber(agendaitem, agenda, counters, countersBlacklist);
 
       for (const piece of piecesResults) {
         const generatedName = generateName(agenda, agendaitem, piece);
@@ -411,12 +416,23 @@ function getAgendaitemPurpose(
 function increaseCounters(
   agenda: Agenda,
   agendaitem: Agendaitem,
-  counters: AgendaActivityCounterDict
+  counters: AgendaActivityCounterDict,
+  countersBlacklist: AgendaActivityCounterBlacklistDict
 ): void {
   const { type: agendaitemType, subcaseType } = agendaitem;
   const agendaitemPurpose = getAgendaitemPurpose(agendaitemType, subcaseType);
   const isPvv = agenda.meeting.type === CONSTANTS.MEETING_TYPES.PVV;
-  counters[isPvv ? "pvv" : "regular"][agendaitemPurpose]++;
+  const type = isPvv ? "pvv" : "regular";
+  counters[type][agendaitemPurpose]++;
+
+  // get blacklisted numbers (subcases that are postponed to a new year reuse their number IF there has been a NEW document)
+  const blacklisted = countersBlacklist[type][agendaitemPurpose];
+  
+  // skipping blacklisted numbers
+  while (blacklisted.includes(counters[type][agendaitemPurpose])) {
+    console.log(`**skipping blacklisted number ${counters[type][agendaitemPurpose]} for meeting type ${type} and document ${agendaitemPurpose} **`);
+    counters[type][agendaitemPurpose]++;
+  }
 }
 
 function generateName(
@@ -486,4 +502,52 @@ function generateName(
     `${subjectPart}${documentTypePart} ${documentVersionPart}`
   );
   return fullGeneratedName.trim();
+}
+
+type AgendaActivityCounterBlacklistDict = {
+  regular: {
+    doc: number[];
+    med: number[];
+    dec: number[];
+  };
+  pvv: {
+    doc: number[];
+    med: number[];
+    dec: number[];
+  };
+};
+
+async function initBlacklist(agenda: Agenda): Promise<AgendaActivityCounterBlacklistDict> {
+  if (!agenda.meeting.plannedStart) {
+    throw new Error("Meeting needs a plannedStart");
+  }
+  const year = agenda.meeting.plannedStart.getFullYear();
+  const subcases = await getAllPostponedSubcasesForBlacklist(year);
+
+  const blacklist: AgendaActivityCounterBlacklistDict = {
+    regular: {
+      doc: [],
+      med: [],
+      dec: [],
+    },
+    pvv: {
+      doc: [],
+      med: [],
+      dec: [],
+    }
+  }
+
+  for (const subcase of subcases) {
+    const pieceName = new VRDocumentName(subcase.pieceName);
+    const caseNr = pieceName.getCaseNr();
+    const agendaitemPurpose = getAgendaitemPurpose(subcase.agendaitemType, subcase.type);
+    const isPvv = subcase.meetingType === CONSTANTS.MEETING_TYPES.PVV;
+    const type = isPvv ? "pvv" : "regular";
+    blacklist[type][agendaitemPurpose].push(caseNr);
+    if (caseNr !== subcase.agendaActivityNumber) {
+      blacklist[type][agendaitemPurpose].push(subcase.agendaActivityNumber);
+      // do anything special in this case? if we never set this to 0 again we could skip checking documents completely since it should match
+    }
+  }
+  return blacklist;
 }

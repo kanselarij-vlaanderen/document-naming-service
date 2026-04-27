@@ -12,7 +12,7 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import CONSTANTS from "../constants";
-import { Agenda, Agendaitem, Piece, Meeting } from "../types/types";
+import { Agenda, Agendaitem, Piece, Meeting, Subcase } from "../types/types";
 import { sparqlQueryWithRetry } from "../lib/utils";
 
 async function getSortedAgendaitems(agendaId: string): Promise<Agendaitem[]> {
@@ -150,19 +150,25 @@ async function getLastAgendaActivityNumber(
 
     SELECT (MAX(?agendaActivityNumber) AS ?maxNumber) WHERE {
       GRAPH ${sparqlEscapeUri(CONSTANTS.GRAPHS.KANSELARIJ)} {
-          ?subcase
             ${
               type === "decree"
-                ? `dct:type ${sparqlEscapeUri(
+                ? `?subcase dct:type ${sparqlEscapeUri(
                     CONSTANTS.SUBCASE_TYPES.BEKRACHTIGING
-                  )}`
-                : `ext:agendapuntType ${sparqlEscapeUri(
+                  )} . ` 
+                : `
+                  MINUS {
+                    ?subcase dct:type ${sparqlEscapeUri(
+                      CONSTANTS.SUBCASE_TYPES.BEKRACHTIGING
+                    )} .
+                  }
+                  ?subcase ext:agendapuntType ${sparqlEscapeUri(
                     type === "announcement"
                       ? CONSTANTS.AGENDA_ITEM_TYPES.MEDEDELING
                       : CONSTANTS.AGENDA_ITEM_TYPES.NOTA
-                  )}`
-            } ;
-            adms:identifier ?agendaActivityNumber .
+                  )} .
+                  `
+            }
+          ?subcase adms:identifier ?agendaActivityNumber .
           ?agendaitem
             ^besluitvorming:genereertAgendapunt
               / prov:wasInformedBy
@@ -193,6 +199,22 @@ async function getLastAgendaActivityNumber(
           }
           FILTER (?agendaApprovedDateTime >= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
           FILTER (?agendaApprovedDateTime <= "${year}-12-31T23:59:59.999Z"^^xsd:dateTime)
+
+      FILTER NOT EXISTS {
+        ?postponedAgendaitem
+          ^besluitvorming:genereertAgendapunt
+            / prov:wasInformedBy
+            / ext:indieningVindtPlaatsTijdens ?subcase .
+        ?postponedAgendaitem
+          ^dct:subject
+            /  besluitvorming:heeftBeslissing ?decisionActivity .
+        ?decisionActivity besluitvorming:resultaat ${sparqlEscapeUri(CONSTANTS.DECISION_RESULT_CODES.UITGESTELD)} .
+        ?postponedOnAgenda
+          besluitvorming:isAgendaVoor ?postponedOnMeeting ;
+          dct:hasPart ?postponedAgendaitem .
+        ?postponedOnMeeting besluit:geplandeStart ?postponedOnMeetingPlannedStart .
+        FILTER (?postponedOnMeetingPlannedStart <= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
+      }
       }
     }
   `;
@@ -472,6 +494,70 @@ async function getRatificationsForMeetingStartingWith(meetingURI: string, starts
   return parsed as Piece[];
 }
 
+async function getAllPostponedSubcasesForBlacklist(
+  year: number,
+): Promise<Subcase[]> {
+  const queryString = `
+    ${prefixHeaderLines.adms}
+    ${prefixHeaderLines.besluit}
+    ${prefixHeaderLines.besluitvorming}
+    ${prefixHeaderLines.dct}
+    ${prefixHeaderLines.ext}
+    ${prefixHeaderLines.generiek}
+    ${prefixHeaderLines.prov}
+    ${prefixHeaderLines.xsd}
+SELECT DISTINCT ?subcase ?subcaseType ?agendaitemType ?agendaActivityNumber ?meetingType ?pieceName WHERE {
+  ?subcase adms:identifier ?agendaActivityNumber ;
+           dct:type ?subcaseType ;
+           ext:agendapuntType ?agendaitemType .
+  ?agendaitem
+    ^besluitvorming:genereertAgendapunt
+      / prov:wasInformedBy
+      / ext:indieningVindtPlaatsTijdens ?subcase .
+  ?agendaitem besluitvorming:geagendeerdStuk / dct:title ?pieceName .
+  FILTER(STRSTARTS( STR(?pieceName), 'VR ${year}'))
+
+  ?agenda dct:hasPart ?agendaitem ;
+          besluitvorming:isAgendaVoor ?meeting ;
+          besluitvorming:agendaStatus ${sparqlEscapeUri(CONSTANTS.AGENDA_STATUSSES.APPROVED)} .
+
+    ?meeting besluit:geplandeStart ?plannedStart ;
+      dct:type ?meetingType .
+    FILTER (?plannedStart >= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
+    FILTER (?plannedStart <= "${year}-12-31T23:59:59.999Z"^^xsd:dateTime)
+
+    FILTER EXISTS {
+      ?postponedAgendaitem
+        ^besluitvorming:genereertAgendapunt
+          / prov:wasInformedBy
+          / ext:indieningVindtPlaatsTijdens ?subcase .
+      ?postponedAgendaitem
+        ^dct:subject
+          /  besluitvorming:heeftBeslissing ?decisionActivity .
+      ?decisionActivity besluitvorming:resultaat ${sparqlEscapeUri(CONSTANTS.DECISION_RESULT_CODES.UITGESTELD)} .
+      ?postponedOnAgenda
+        besluitvorming:isAgendaVoor ?postponedOnMeeting ;
+        dct:hasPart ?postponedAgendaitem .
+      ?postponedOnMeeting besluit:geplandeStart ?postponedOnMeetingPlannedStart .
+      FILTER (?postponedOnMeetingPlannedStart <= "${year}-01-01T00:00:00.000Z"^^xsd:dateTime)
+    }
+  }`;
+
+  const response = await sparqlQueryWithRetry(query, queryString);
+  return parseAndReshape(response, {
+    kind: "resource",
+    idProp: "subcase",
+    destIdProp: "uri",
+    propShapers: {
+      type: { kind: "literal", sourceProp: "subcaseType" },
+      agendaitemType: { kind: "literal" },
+      agendaActivityNumber: { kind: "literal" },
+      meetingType: { kind: "literal" },
+      pieceName: { kind: "literal" },
+    },
+  }) as Subcase[];
+}
+
 export {
   getSortedAgendaitems,
   getPiecesForAgenda,
@@ -484,4 +570,5 @@ export {
   getMeeting,
   getPiecesForMeetingStartingWith,
   getRatificationsForMeetingStartingWith,
+  getAllPostponedSubcasesForBlacklist,
 };
