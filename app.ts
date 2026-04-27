@@ -32,7 +32,6 @@ import {
   sparqlEscapeInt,
 } from "mu";
 import { replacePieceVRNameDate } from './lib/change-date';
-import { COUNTER_BLACKLIST } from './config';
 import VRDocumentName from './lib/vr-document-name';
 
 type FileMapping = {
@@ -427,7 +426,7 @@ function increaseCounters(
   counters[type][agendaitemPurpose]++;
 
   // get blacklisted numbers (subcases that are postponed to a new year reuse their number IF there has been a NEW document)
-  const blacklisted = countersBlacklist[type][agendaitemPurpose] || COUNTER_BLACKLIST[type][agendaitemPurpose];
+  const blacklisted = countersBlacklist[type][agendaitemPurpose];
   
   // skipping blacklisted numbers
   while (blacklisted.includes(counters[type][agendaitemPurpose])) {
