@@ -430,7 +430,7 @@ function increaseCounters(
   
   // skipping blacklisted numbers
   while (blacklisted.includes(counters[type][agendaitemPurpose])) {
-    console.log(`**skipping blacklisted number ${counters[type][agendaitemPurpose]} for meeting type ${type} and document ${agendaitemPurpose} **`);
+    console.log(`** skipping blacklisted number ${counters[type][agendaitemPurpose]} for meeting type: ${type} and document purpose: ${agendaitemPurpose.toUpperCase()} **`);
     counters[type][agendaitemPurpose]++;
   }
 }

@@ -497,6 +497,7 @@ async function getRatificationsForMeetingStartingWith(meetingURI: string, starts
 async function getAllPostponedSubcasesForBlacklist(
   year: number,
 ): Promise<Subcase[]> {
+  // subcaseType could be optional but really shouldn't be in modern data
   const queryString = `
     ${prefixHeaderLines.adms}
     ${prefixHeaderLines.besluit}
